@@ -36,3 +36,10 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+#md
+GEMINI.md
+SESSION.md
+AGENTS.md
+READMEPHASE1.md
+.agent/
