@@ -1,18 +1,19 @@
-'use client';
+'use client'
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  BarChart3, 
-  Search, 
-  Share2, 
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import {
+  LayoutDashboard,
+  BarChart3,
+  Search,
+  Share2,
   Settings,
   Activity,
-  Plug
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+  Plug,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -22,10 +23,21 @@ const navItems = [
   { name: 'Meta Ads', href: '/meta-ads', icon: Share2 },
   { name: 'Connect Accounts', href: '/connect', icon: Plug },
   { name: 'Settings', href: '/settings', icon: Settings },
-];
+]
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname()
+  const [connectedCount, setConnectedCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetch('/api/integrations/status')
+      .then((r) => r.json())
+      .then((s) => {
+        const count = [s.google, s.meta].filter(Boolean).length
+        setConnectedCount(count)
+      })
+      .catch(() => setConnectedCount(0))
+  }, [pathname]) // re-check after navigation so connect/disconnect reflects immediately
 
   return (
     <div className="w-[220px] flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-full">
@@ -45,7 +57,7 @@ export function Sidebar() {
           Menu
         </div>
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href
           return (
             <Link
               key={item.name}
@@ -60,7 +72,7 @@ export function Sidebar() {
               <item.icon className="w-4 h-4" />
               {item.name}
             </Link>
-          );
+          )
         })}
       </div>
 
@@ -71,12 +83,21 @@ export function Sidebar() {
         </div>
         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 py-1">
           <span className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600" />
+            <div
+              className={cn(
+                'w-2 h-2 rounded-full',
+                connectedCount && connectedCount > 0
+                  ? 'bg-green-500'
+                  : 'bg-gray-300 dark:bg-gray-600'
+              )}
+            />
             Integrations
           </span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">0/4</Badge>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {connectedCount ?? '—'}/4
+          </Badge>
         </div>
       </div>
     </div>
-  );
+  )
 }

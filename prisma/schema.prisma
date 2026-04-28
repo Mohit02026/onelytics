@@ -11,8 +11,48 @@ model Workspace {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  users     User[]
+
+  users             User[]
+  connectedAccounts ConnectedAccount[]
+  analyticsCache    AnalyticsCache[]
+}
+
+model ConnectedAccount {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  provider     String
+  propertyId   String?   @map("property_id")
+  accessToken  String    @map("access_token") @db.Text
+  refreshToken String?   @map("refresh_token") @db.Text
+  expiresAt    DateTime? @map("expires_at")
+  scope        String?
+  connectedAt  DateTime  @default(now()) @map("connected_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+  @@index([workspaceId, provider])
+  @@map("connected_accounts")
+}
+
+model AnalyticsCache {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  provider    String
+  dataType    String   @map("data_type")
+  dateRange   String   @map("date_range")
+  data        Json
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, dataType, dateRange])
+  @@index([workspaceId])
+  @@index([workspaceId, provider])
+  @@index([fetchedAt])
+  @@map("analytics_cache")
 }
 
 model User {
