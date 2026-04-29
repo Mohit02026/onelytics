@@ -341,3 +341,36 @@ Now accepts any WordPress URL format and strips admin/API path suffixes before s
 
 ### Issue 33: Date range picker only had 3 presets (7/30/90 days)
 **Fix:** Rewrote `components/analytics/date-range-picker.tsx` with 9 presets (Last 7, 14, 30, 90 days, Last 6 months, This month, Last month, This year, Last year) plus a custom range section with two native `<input type="date">` fields. All analytics pages automatically got the upgrade since they all import from this component.
+
+---
+
+## Session: 2026-04-29 — GA4 cards zero fix
+
+### Issue 34: GA4 overview cards showed 0 on the unified dashboard
+**Problem:** Sessions, Users, Bounce Rate, Avg Session cards on the main dashboard (`/`) all showed 0 even though the chart (daily sessions) rendered correctly.
+
+**Root Cause:** The GA4 Data API only populates the `totals` field in its response when `metricAggregations: ["TOTAL"]` is included in the request body. Without it, `dailyData.totals` is `undefined`. The chart worked because it uses per-row `daily` data (not totals). The overview values fell back to `?? 0`.
+
+**Fix:** Added `metricAggregations: ['TOTAL']` to the daily report request in `services/google/ga4.ts`.
+
+---
+
+### Issue 35: GA4 overview cards showed 0 on the GA4 individual page after the fix
+**Problem:** After adding `metricAggregations: ['TOTAL']` to the GA4 service, the individual GA4 page (`/ga4`) still showed zeros in the overview cards.
+
+**Root Cause:** The `/api/analytics/ga4` route has a 6-hour cache. The cache entries stored before the fix had `overview.sessions = 0`. The route served the stale cached response instead of re-fetching.
+
+**Fix:** Manually deleted all `analytics_cache` rows where `provider = 'ga4'` via `psql` on the Docker postgres container:
+```sql
+DELETE FROM analytics_cache WHERE provider = 'ga4';
+```
+On next page load the route fetched fresh data with the correct `metricAggregations` included.
+
+---
+
+### Issue 36: Unified dashboard Ads call used wrong field for customer ID
+**Problem:** After the intent-first connect flow redesign (Issue 27), Google Ads customer ID was moved to `metadata.googleAdsCustomerId`. But the unified route still read it from `googleAccount.propertyId`, which now holds the GA4 Property ID.
+
+**Root Cause:** The unified route predated the metadata migration and wasn't updated when `propertyId` usage was split.
+
+**Fix:** Updated `app/api/analytics/unified/route.ts` to read `(googleAccount.metadata as Record<string,string>)?.googleAdsCustomerId ?? ''`. The Ads fetch is now correctly skipped when no customer ID is saved.

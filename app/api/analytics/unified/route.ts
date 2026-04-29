@@ -73,14 +73,15 @@ export async function GET(req: Request) {
 
   const gscMeta = googleAccount?.metadata as Record<string, string> | null
   const hasGsc = !!gscMeta?.gscSiteUrl
+  const googleAdsCustomerId = gscMeta?.googleAdsCustomerId ?? ''
 
   // Fetch all sources in parallel (gracefully handle missing connections)
   const [adsResult, metaResult, ga4Result, gscResult] = await Promise.allSettled([
-    googleAccount
+    googleAccount && googleAdsCustomerId
       ? resolveGoogleToken(workspaceId, googleAccount).then((token) =>
           token === DUMMY_GOOGLE
             ? getAdsReportDummy(startDate, endDate)
-            : getAdsReportFromApi(token, googleAccount.propertyId ?? '', startDate, endDate)
+            : getAdsReportFromApi(token, googleAdsCustomerId, startDate, endDate)
         )
       : Promise.reject('not connected'),
     metaAccount

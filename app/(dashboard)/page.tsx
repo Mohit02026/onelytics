@@ -82,6 +82,7 @@ export default function DashboardPage() {
       {/* KPI cards */}
       {report && <UnifiedStats data={report} />}
 
+
       {/* Spend chart + AI summary */}
       {report && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
