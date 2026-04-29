@@ -1,11 +1,12 @@
 import { Job } from 'bullmq'
 import { syncQueue } from '@/workers/bullmq'
-import { getGa4Report } from '@/services/google/ga4'
+import { getGa4Report, DUMMY_TOKEN } from '@/services/google/ga4'
+import { refreshAccessToken } from '@/services/google/auth'
 import { prisma } from '@/lib/db'
+import { encrypt, decrypt } from '@/lib/encryption'
 
 export interface Ga4SyncJobData {
   workspaceId: string
-  propertyId: string
   startDate: string
   endDate: string
 }
@@ -18,9 +19,32 @@ export async function enqueueGa4Sync(data: Ga4SyncJobData) {
 }
 
 export async function processGa4SyncJob(job: Job<Ga4SyncJobData>) {
-  const { workspaceId, propertyId, startDate, endDate } = job.data
+  const { workspaceId, startDate, endDate } = job.data
 
-  const report = await getGa4Report(workspaceId, propertyId, startDate, endDate)
+  const account = await prisma.connectedAccount.findUnique({
+    where: { workspaceId_provider: { workspaceId, provider: 'google' } },
+  })
+  if (!account) throw new Error(`No Google account for workspace ${workspaceId}`)
+
+  let accessToken = decrypt(account.accessToken)
+
+  // Refresh if expired (and not a dummy token)
+  if (accessToken !== DUMMY_TOKEN) {
+    const expiresAt = account.expiresAt?.getTime() ?? 0
+    if (Date.now() >= expiresAt - 5 * 60 * 1000 && account.refreshToken) {
+      const refreshed = await refreshAccessToken(decrypt(account.refreshToken))
+      accessToken = refreshed.accessToken
+      await prisma.connectedAccount.update({
+        where: { workspaceId_provider: { workspaceId, provider: 'google' } },
+        data: {
+          accessToken: encrypt(accessToken),
+          expiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
+        },
+      })
+    }
+  }
+
+  const report = await getGa4Report(accessToken, account.propertyId ?? '', startDate, endDate)
 
   await prisma.analyticsCache.upsert({
     where: {
