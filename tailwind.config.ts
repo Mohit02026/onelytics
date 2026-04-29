@@ -42,9 +42,15 @@ const config: Config = {
         destructive: {
           DEFAULT: 'var(--destructive)',
         },
-        border: 'var(--border)',
+        border: {
+          DEFAULT: 'var(--border)',
+          border: 'var(--border)', // Alias for border-border
+        },
         input: 'var(--input)',
-        ring: 'var(--ring)',
+        ring: {
+          DEFAULT: 'var(--ring)',
+          ring: 'var(--ring)', // Alias for ring-ring
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

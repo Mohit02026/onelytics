@@ -24,7 +24,103 @@ export interface Ga4Report {
   dateRange: { startDate: string; endDate: string }
 }
 
-// Seeded pseudo-random so dummy data is stable per date, not random on every request
+// ─── Real GA4 Data API ────────────────────────────────────────────────────────
+
+export async function getGa4ReportFromApi(
+  accessToken: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<Ga4Report> {
+  const base = `https://analyticsdata.googleapis.com/v1beta/${propertyId}:runReport`
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  const [dailyRes, sourcesRes] = await Promise.all([
+    fetch(base, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'activeUsers' },
+          { name: 'bounceRate' },
+          { name: 'averageSessionDuration' },
+        ],
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+      }),
+    }),
+    fetch(base, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 5,
+      }),
+    }),
+  ])
+
+  if (!dailyRes.ok) {
+    const err = await dailyRes.json().catch(() => ({}))
+    throw new Error(`GA4 API error: ${err.error?.message ?? dailyRes.status}`)
+  }
+  if (!sourcesRes.ok) {
+    const err = await sourcesRes.json().catch(() => ({}))
+    throw new Error(`GA4 sources API error: ${err.error?.message ?? sourcesRes.status}`)
+  }
+
+  const [dailyData, sourcesData] = await Promise.all([dailyRes.json(), sourcesRes.json()])
+
+  // GA4 returns dates as "YYYYMMDD" — normalise to "YYYY-MM-DD"
+  const daily: Ga4DailyRow[] = (dailyData.rows ?? []).map((row: Record<string, { value: string }[]>) => ({
+    date: (row.dimensionValues[0].value as string).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+    sessions: parseInt(row.metricValues[0].value, 10),
+    users: parseInt(row.metricValues[1].value, 10),
+  }))
+
+  const totals = dailyData.totals?.[0]?.metricValues ?? []
+  const totalSessions = parseInt(totals[0]?.value ?? '0', 10)
+  const totalUsers = parseInt(totals[1]?.value ?? '0', 10)
+  // GA4 returns bounceRate as a ratio (0–1); convert to percentage
+  const bounceRate = Math.round(parseFloat(totals[2]?.value ?? '0') * 1000) / 10
+  const avgDuration = Math.round(parseFloat(totals[3]?.value ?? '0'))
+
+  const totalSourceSessions = (sourcesData.rows ?? []).reduce(
+    (sum: number, r: Record<string, { value: string }[]>) =>
+      sum + parseInt(r.metricValues[0].value, 10),
+    0
+  )
+  const trafficSources: Ga4TrafficSource[] = (sourcesData.rows ?? []).map(
+    (row: Record<string, { value: string }[]>) => {
+      const sessions = parseInt(row.metricValues[0].value, 10)
+      return {
+        source: row.dimensionValues[0].value,
+        sessions,
+        percentage:
+          totalSourceSessions > 0
+            ? Math.round((sessions / totalSourceSessions) * 100)
+            : 0,
+      }
+    }
+  )
+
+  return {
+    overview: { sessions: totalSessions, users: totalUsers, bounceRate, avgSessionDuration: avgDuration },
+    daily,
+    trafficSources,
+    dateRange: { startDate, endDate },
+  }
+}
+
+// ─── Dummy data (used when no real credentials are present) ──────────────────
+
 function seeded(seed: number): number {
   const x = Math.sin(seed + 1) * 10000
   return x - Math.floor(x)
@@ -41,14 +137,8 @@ function daysInRange(startDate: string, endDate: string): Date[] {
   return days
 }
 
-export async function getGa4Report(
-  _workspaceId: string,
-  _propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<Ga4Report> {
+export function getGa4ReportDummy(startDate: string, endDate: string): Ga4Report {
   const days = daysInRange(startDate, endDate)
-
   let totalSessions = 0
   let totalUsers = 0
 
@@ -77,4 +167,20 @@ export async function getGa4Report(
     ],
     dateRange: { startDate, endDate },
   }
+}
+
+// ─── Public entrypoint — routes call this only ───────────────────────────────
+
+export const DUMMY_TOKEN = 'dummy_access_token'
+
+export async function getGa4Report(
+  accessToken: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<Ga4Report> {
+  if (accessToken === DUMMY_TOKEN) {
+    return getGa4ReportDummy(startDate, endDate)
+  }
+  return getGa4ReportFromApi(accessToken, propertyId, startDate, endDate)
 }

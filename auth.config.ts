@@ -9,8 +9,9 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isApiAuthRoute = nextUrl.pathname.startsWith('/api/auth');
       const isAuthRoute = nextUrl.pathname === '/login' || nextUrl.pathname === '/register';
+      const isInviteRoute = nextUrl.pathname.startsWith('/invite/');
       
-      if (isApiAuthRoute) return true;
+      if (isApiAuthRoute || isInviteRoute) return true;
       
       if (isAuthRoute) {
         if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
