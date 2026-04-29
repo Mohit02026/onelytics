@@ -1,36 +1,184 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Onelytics
 
-## Getting Started
+Unified marketing analytics dashboard. Connect Google Analytics, Google Ads, Search Console, Meta Ads, TikTok Ads, LinkedIn Ads, and WordPress into a single workspace with team management and AI-powered summaries.
 
-First, run the development server:
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Database**: PostgreSQL via Prisma 7
+- **Auth**: NextAuth v5 (credentials + session)
+- **Encryption**: AES-256-GCM for stored tokens
+- **AI**: Anthropic Claude Haiku
+- **UI**: Tailwind CSS, Base UI, Recharts
+
+## Quick Start
+
+### 1. Prerequisites
+
+- Node.js 18+
+- PostgreSQL database (local or Supabase)
+- Redis (local or Upstash)
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Fill in `.env` — at minimum you need:
+
+| Variable | Description |
+|---|---|
+| `NEXTAUTH_URL` | `http://localhost:3000` in dev |
+| `NEXTAUTH_SECRET` | Random 32-byte hex string |
+| `ENCRYPTION_KEY` | Random 32-byte hex string (for token encryption) |
+| `DATABASE_URL` | PostgreSQL connection string |
+
+Generate secrets:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 4. Database setup
+
+```bash
+npx prisma migrate dev
+npx prisma generate
+```
+
+### 5. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Available Scripts
 
-## Learn More
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm start` | Start production server |
+| `npm run lint` | Lint with ESLint |
+| `npx prisma studio` | Open Prisma DB browser |
+| `npx prisma migrate dev` | Apply migrations in dev |
+| `npx prisma generate` | Regenerate Prisma client |
+| `npx tsc --noEmit` | TypeScript type-check |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Integrations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Each integration requires OAuth credentials (except WordPress). All run in **demo mode** with seeded dummy data if the real token is the sentinel value.
 
-## Deploy on Vercel
+| Integration | OAuth App Setup | Key Variables |
+|---|---|---|
+| **Google** (GA4 + Ads + Search Console) | [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| **Meta Ads** | [Meta Developers](https://developers.facebook.com) → My Apps | `META_APP_ID`, `META_APP_SECRET` |
+| **TikTok Ads** | [TikTok Business API](https://business-api.tiktok.com) → My Apps | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` |
+| **LinkedIn Ads** | [LinkedIn Developer Portal](https://developer.linkedin.com) | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` |
+| **WordPress** | Application Password in WP Admin → Users | None (credentials stored encrypted) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Required OAuth Redirect URIs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Register these in each OAuth app:
+
+```
+http://localhost:3000/api/integrations/google/callback
+http://localhost:3000/api/integrations/meta/callback
+http://localhost:3000/api/integrations/tiktok/callback
+http://localhost:3000/api/integrations/linkedin/callback
+```
+
+For production replace `http://localhost:3000` with your domain.
+
+---
+
+## Project Structure
+
+```
+app/
+  (dashboard)/          # Authenticated dashboard pages
+    page.tsx            # Unified overview
+    ga4/                # Google Analytics
+    google-ads/         # Google Ads
+    search-console/     # Search Console
+    meta-ads/           # Meta Ads
+    tiktok-ads/         # TikTok Ads
+    linkedin-ads/       # LinkedIn Ads
+    wordpress/          # WordPress
+    connect/            # Connect integrations
+    settings/           # Workspace settings
+      members/          # Team management
+  api/
+    analytics/          # Per-platform analytics endpoints
+    integrations/       # OAuth connect/callback/disconnect
+    workspace/          # Workspace + members API
+  invite/[token]/       # Public invite acceptance
+services/               # API service layer (real + dummy data)
+  google/, meta/, tiktok/, linkedin/, wordpress/
+lib/                    # Auth, DB, encryption, workspace helpers
+components/
+  analytics/            # Chart and table components per platform
+  ui/                   # Shared UI primitives
+prisma/
+  schema.prisma         # Database schema
+  migrations/           # Migration history
+```
+
+---
+
+## Team Features
+
+Onelytics supports multi-user workspaces with role-based access:
+
+| Role | Can view | Can edit integrations | Can manage members | Can rename workspace |
+|---|---|---|---|---|
+| **Owner** | Yes | Yes | Yes | Yes |
+| **Admin** | Yes | Yes | Yes | Yes |
+| **Member** | Yes | Yes | No | No |
+| **Viewer** | Yes | No | No | No |
+
+Invite members via **Settings → Members → Invite Member**. Invite links expire after 7 days.
+
+---
+
+## Environment Variables Reference
+
+See [`.env.example`](.env.example) for all variables with setup instructions.
+
+---
+
+## Database Schema
+
+Key models:
+
+- `User` — authenticated users
+- `Workspace` — tenant container
+- `WorkspaceMember` — user ↔ workspace membership with role
+- `WorkspaceInvite` — pending invitations
+- `ConnectedAccount` — OAuth tokens per platform (encrypted)
+- `AnalyticsCache` — 6-hour cache for API responses
+
+---
+
+## Deployment
+
+1. Set all environment variables in your hosting platform
+2. Set `NEXTAUTH_URL` to your production domain
+3. Run `npx prisma migrate deploy` (not `dev`) in production
+4. Build: `npm run build`
+5. Start: `npm start`
+
+Tested on Vercel and Railway.
