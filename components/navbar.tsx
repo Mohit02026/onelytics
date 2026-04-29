@@ -54,7 +54,11 @@ export function Navbar() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={async () => {
+              await signOut({ redirect: false })
+              router.push('/login')
+              router.refresh()
+            }}
             className="text-red-600 dark:text-red-400 cursor-pointer"
           >
             Log out

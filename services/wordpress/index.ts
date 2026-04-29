@@ -32,17 +32,17 @@ export async function getWpReportFromApi(
   const base = siteUrl.replace(/\/$/, '')
   const headers = { Authorization: `Basic ${credentials}` }
 
-  const [postsRes, commentsRes] = await Promise.all([
-    fetch(
-      `${base}/wp-json/wp/v2/posts?per_page=20&after=${startDate}T00:00:00&before=${endDate}T23:59:59&status=publish,draft&_fields=id,title,status,date,link,comment_count`,
-      { headers }
-    ),
+  // Fetch site-wide counts (no date filter) + recent posts in parallel
+  const [publishedRes, draftsRes, commentsRes, recentRes] = await Promise.all([
+    fetch(`${base}/wp-json/wp/v2/posts?per_page=1&status=publish&_fields=id`, { headers }),
+    fetch(`${base}/wp-json/wp/v2/posts?per_page=1&status=draft&_fields=id`, { headers }),
     fetch(`${base}/wp-json/wp/v2/comments?per_page=1&_fields=id`, { headers }),
+    fetch(`${base}/wp-json/wp/v2/posts?per_page=20&orderby=date&order=desc&status=publish,draft&_fields=id,title,status,date,link,comment_count`, { headers }),
   ])
 
-  if (!postsRes.ok) {
-    const err = await postsRes.json().catch(() => ({}))
-    throw new Error(`WordPress API error: ${(err as { message?: string }).message ?? postsRes.status}`)
+  if (!publishedRes.ok) {
+    const err = await publishedRes.json().catch(() => ({}))
+    throw new Error(`WordPress API error: ${(err as { message?: string }).message ?? publishedRes.status}`)
   }
 
   type WpApiPost = {
@@ -54,23 +54,21 @@ export async function getWpReportFromApi(
     comment_count: number
   }
 
-  const posts: WpApiPost[] = await postsRes.json()
-  const totalComments = commentsRes.ok
-    ? parseInt(commentsRes.headers.get('X-WP-Total') ?? '0', 10)
-    : 0
-  const totalPosts = parseInt(postsRes.headers.get('X-WP-Total') ?? String(posts.length), 10)
+  const published = parseInt(publishedRes.headers.get('X-WP-Total') ?? '0', 10)
+  const drafts = draftsRes.ok ? parseInt(draftsRes.headers.get('X-WP-Total') ?? '0', 10) : 0
+  const totalComments = commentsRes.ok ? parseInt(commentsRes.headers.get('X-WP-Total') ?? '0', 10) : 0
+  const totalPosts = published + drafts
 
-  const recentPosts: WpPost[] = posts.map((p) => ({
+  const rawPosts: WpApiPost[] = recentRes.ok ? await recentRes.json() : []
+
+  const recentPosts: WpPost[] = rawPosts.map((p) => ({
     id: p.id,
     title: p.title.rendered.replace(/<[^>]+>/g, ''),
     status: (p.status === 'publish' ? 'publish' : p.status === 'draft' ? 'draft' : 'private') as WpPost['status'],
     date: p.date,
     link: p.link,
-    commentCount: p.comment_count,
+    commentCount: p.comment_count ?? 0,
   }))
-
-  const published = recentPosts.filter((p) => p.status === 'publish').length
-  const drafts = recentPosts.filter((p) => p.status === 'draft').length
 
   return {
     overview: { totalPosts, published, drafts, totalComments },

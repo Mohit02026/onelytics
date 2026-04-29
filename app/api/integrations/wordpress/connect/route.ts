@@ -26,6 +26,11 @@ export async function POST(req: Request) {
   const workspaceId = session.user.workspaceId
   const { siteUrl, username, appPassword } = parsed.data
 
+  // Strip admin/login paths so the root site URL is stored
+  const normalizedUrl = siteUrl
+    .replace(/\/$/, '')
+    .replace(/\/(wp-admin|wp-login\.php|wp-json)(\/.*)?$/, '')
+
   // Encode credentials as base64(user:appPassword) — WordPress Basic Auth format
   const credentials =
     username === 'dummy' && appPassword === 'dummy'
@@ -36,14 +41,14 @@ export async function POST(req: Request) {
     where: { workspaceId_provider: { workspaceId, provider: 'wordpress' } },
     update: {
       accessToken: encrypt(credentials),
-      propertyId: siteUrl.replace(/\/$/, ''),
+      propertyId: normalizedUrl,
       updatedAt: new Date(),
     },
     create: {
       workspaceId,
       provider: 'wordpress',
       accessToken: encrypt(credentials),
-      propertyId: siteUrl.replace(/\/$/, ''),
+      propertyId: normalizedUrl,
     },
   })
 

@@ -52,6 +52,10 @@ export async function GET(req: Request) {
   })
   if (!account) return Response.json({ error: 'Google not connected' }, { status: 404 })
 
+  const meta = account.metadata as Record<string, string> | null
+  const customerId = meta?.googleAdsCustomerId ?? ''
+  if (!customerId) return Response.json({ error: 'Google Ads customer ID not configured' }, { status: 404 })
+
   const cacheKey = `${startDate}:${endDate}`
   const cached = await prisma.analyticsCache.findUnique({
     where: {
@@ -65,7 +69,7 @@ export async function GET(req: Request) {
   }
 
   const accessToken = await resolveAccessToken(workspaceId, account)
-  const report = await getAdsReport(accessToken, account.propertyId ?? '', startDate, endDate)
+  const report = await getAdsReport(accessToken, customerId, startDate, endDate)
 
   await prisma.analyticsCache.upsert({
     where: {

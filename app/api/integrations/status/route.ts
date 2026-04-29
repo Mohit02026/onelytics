@@ -20,6 +20,7 @@ export async function GET() {
     linkedin: false,
     propertyId: null as string | null,
     gscSiteUrl: null as string | null,
+    googleAdsCustomerId: null as string | null,
     wpSiteUrl: null as string | null,
     metaAdAccountId: null as string | null,
     tiktokAdvertiserId: null as string | null,
@@ -32,6 +33,7 @@ export async function GET() {
       status.propertyId = account.propertyId
       const meta = account.metadata as Record<string, string> | null
       status.gscSiteUrl = meta?.gscSiteUrl ?? null
+      status.googleAdsCustomerId = meta?.googleAdsCustomerId ?? null
     }
     if (account.provider === 'meta') {
       status.meta = true

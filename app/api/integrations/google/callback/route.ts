@@ -1,16 +1,9 @@
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { encrypt } from '@/lib/encryption'
 import { exchangeCodeForTokens } from '@/services/google/auth'
-
-function parseCookies(header: string): Record<string, string> {
-  return Object.fromEntries(
-    header.split(';').map((c) => {
-      const [k, ...v] = c.trim().split('=')
-      return [k.trim(), v.join('=')]
-    })
-  )
-}
 
 const BASE = process.env.NEXTAUTH_URL!
 
@@ -21,22 +14,28 @@ export async function GET(req: Request) {
   const error = searchParams.get('error')
 
   if (error) {
-    return Response.redirect(`${BASE}/connect?error=google_denied`)
+    return NextResponse.redirect(`${BASE}/connect?error=google_denied`)
   }
 
   if (!code || !state) {
-    return Response.redirect(`${BASE}/connect?error=invalid_callback`)
+    return NextResponse.redirect(`${BASE}/connect?error=invalid_callback`)
   }
 
-  // Verify CSRF state cookie
-  const cookies = parseCookies(req.headers.get('cookie') ?? '')
-  if (!cookies.oauth_state || cookies.oauth_state !== state) {
-    return Response.redirect(`${BASE}/connect?error=invalid_state`)
+  // Verify CSRF state cookie using Next.js cookies() API
+  const cookieStore = await cookies()
+  const savedState = cookieStore.get('oauth_state')?.value
+
+  if (!savedState || savedState !== state) {
+    return NextResponse.redirect(`${BASE}/connect?error=invalid_state`)
   }
+
+  const validServices = ['ga4', 'gsc', 'ads']
+  const servicePart = state.split(':')[0]
+  const service = validServices.includes(servicePart) ? servicePart : 'ga4'
 
   const session = await auth()
   if (!session) {
-    return Response.redirect(`${BASE}/login`)
+    return NextResponse.redirect(`${BASE}/login?callbackUrl=/connect`)
   }
 
   try {
@@ -65,11 +64,10 @@ export async function GET(req: Request) {
       },
     })
 
-    // Clear state cookie and redirect to connect page to set property ID
-    const res = Response.redirect(`${BASE}/connect?google=connected`)
-    res.headers.set('Set-Cookie', 'oauth_state=; HttpOnly; Path=/; Max-Age=0')
+    const res = NextResponse.redirect(`${BASE}/connect?google=connected&service=${service}`)
+    res.cookies.set('oauth_state', '', { maxAge: 0, path: '/' })
     return res
   } catch {
-    return Response.redirect(`${BASE}/connect?error=token_exchange_failed`)
+    return NextResponse.redirect(`${BASE}/connect?error=token_exchange_failed`)
   }
 }

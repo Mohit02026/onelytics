@@ -237,3 +237,107 @@ This uses caching from analytics routes — if data is cached (6hr TTL) generati
 
 ### Issue 23: Report uses internal API calls with cookie forwarding
 **Decision:** `generateReport()` calls internal analytics routes (`/api/analytics/meta`, etc.) via `fetch` with the user's `Cookie` header forwarded. This reuses all the existing auth + caching + data fetching logic without duplication. The `NEXTAUTH_URL` env var must be set correctly for this to work in production.
+
+---
+
+## Session: 2026-04-29 — OAuth hardening + UX improvements
+
+### Issue 24: `Response.json().headers.set('Set-Cookie')` silently fails in Next.js App Router
+**Problem:** OAuth state cookies were never reaching the browser. The connect routes used `Response.json({url}).headers.set('Set-Cookie', ...)` which appeared to work but the cookie was never sent.
+
+**Root Cause:** Standard `Response` headers are immutable after construction in the Fetch API spec. Next.js App Router enforces this — `headers.set()` on a `Response` silently no-ops instead of throwing.
+
+**Fix:** Switched all 4 OAuth connect routes and the Google callback route to `NextResponse.json()` + `res.cookies.set(...)`. `NextResponse` extends `Response` with a mutable cookies API that correctly sets `Set-Cookie` headers on the outgoing response.
+
+---
+
+### Issue 25: `auth()` returning null — 401 on all API routes despite being logged in
+**Problem:** Every API route returned 401 Unauthorized even with a valid session cookie present. `auth()` internally makes a fetch to `http://localhost:3000/api/auth/session` to validate the JWT, and this was failing.
+
+**Root Cause:** On Windows, `localhost` resolves to `::1` (IPv6) in Node.js, but Next.js dev server listens on `127.0.0.1` (IPv4). The internal `auth()` fetch was going to `::1:3000` which had no listener.
+
+**Fix:**
+- Changed `NEXTAUTH_URL` from `http://localhost:3000` to `http://127.0.0.1:3000`
+- Added `AUTH_URL=http://127.0.0.1:3000` and `AUTH_TRUST_HOST=true`
+- Added `trustHost: true` to `authConfig` in `auth.config.ts`
+
+---
+
+### Issue 26: Logout requires two clicks with CredentialsProvider + NextAuth v5
+**Problem:** Clicking "Log out" once redirected to `/login` but the user was still authenticated — a second click was needed to fully clear the session.
+
+**Root Cause:** `signOut({ callbackUrl: '/login' })` clears the cookie then redirects, but the middleware's `authorized` callback sees the stale cached session on the first page load after redirect.
+
+**Fix:** Changed navbar logout to `await signOut({ redirect: false })` then `router.push('/login')` + `router.refresh()`. The `router.refresh()` forces Next.js to re-run server components and middleware with the cleared session.
+
+---
+
+### Issue 27: Google Ads incorrectly showed "Connected" after Google OAuth
+**Problem:** After connecting Google OAuth (for GA4), the Google Ads card on the connect page also showed "Connected" even though no Ads customer ID had been configured.
+
+**Root Cause:** `getConnectedStatus('google-ads')` returned `status.google` — just checking whether the OAuth token existed, not whether a customer ID was saved.
+
+**Fix:** Added `googleAdsCustomerId` field stored in `ConnectedAccount.metadata`. Status API now returns it. `getConnectedStatus('google-ads')` requires `status.google && !!status.googleAdsCustomerId`. Added new route `/api/integrations/google/ads-customer` to save the customer ID.
+
+---
+
+### Issue 28: All Google services showed setup prompts at once after OAuth
+**Problem:** After connecting Google OAuth, the connect page showed three banners simultaneously (GA4 property ID, Search Console site URL, Google Ads customer ID), which was confusing.
+
+**Fix:** Redesigned to intent-first connect flow:
+- Each Google service card (GA4, Ads, GSC) has its own Connect button
+- First click on any card runs Google OAuth with the target service encoded in the state: `state = "${service}:${csrf}"`
+- Callback decodes the service from state, redirects with `?service=ga4|gsc|ads`
+- Page opens an inline picker only for the service that was clicked
+- Subsequent clicks (token already stored) skip OAuth entirely and open the picker directly
+
+---
+
+### Issue 29: GA4 property and Search Console site required manual text entry
+**Problem:** After OAuth, users had to manually type their GA4 property ID (`properties/XXXXXXXXX`) and Search Console site URL — error-prone.
+
+**Fix:** Added two new API routes:
+- `GET /api/integrations/google/ga4-properties` — calls `analyticsadmin.googleapis.com/v1beta/accountSummaries`, returns list of `{id, name, account}`
+- `GET /api/integrations/google/gsc-sites` — calls `webmasters.googleapis.com/v3/sites`, returns verified sites
+
+Connect page now shows a `<select>` dropdown populated from the API. User picks from their real properties/sites instead of typing.
+
+Google Ads customer ID still uses manual input — Google Ads API requires a separate developer token approval.
+
+---
+
+### Issue 30: WordPress page showed "Failed" — no error handling in analytics route
+**Problem:** `/app/(dashboard)/wordpress` showed "Failed to load WordPress data" with no useful information.
+
+**Root Cause:** `getWpReport()` in the route had no try-catch. Any WordPress API error caused an unhandled 500 which the page treated as a generic failure.
+
+**Fix:** Wrapped `getWpReport()` in try-catch in the route. Returns `401` for credential errors, `502` for API errors. WordPress page now shows "credentials invalid" state (with a Reconnect button) for 401, and a more specific error message for other failures.
+
+---
+
+### Issue 31: WordPress data showed all zeros
+**Problem:** After successfully connecting WordPress, all overview counts (posts, published, drafts, comments) showed 0.
+
+**Root Cause:** The API query filtered posts by `after=${startDate}&before=${endDate}`. The `X-WP-Total` header (used for totalPosts count) reflected the count within the date range, not the site total. A school site with no posts in the last 30 days returned 0 for everything.
+
+**Fix:** Changed to separate parallel API calls for site-wide counts (no date filter):
+- `GET /wp-json/wp/v2/posts?per_page=1&status=publish` → `X-WP-Total` = total published
+- `GET /wp-json/wp/v2/posts?per_page=1&status=draft` → `X-WP-Total` = total drafts
+- `GET /wp-json/wp/v2/comments?per_page=1` → `X-WP-Total` = total comments
+- Recent posts table uses `orderby=date&order=desc` with no date filter
+
+---
+
+### Issue 32: WordPress connect accepted `/wp-admin` URL instead of site root
+**Problem:** User entered `https://abilityschoolnj.org/wp-admin` as the site URL. This was stored as-is, causing all REST API calls to go to `https://abilityschoolnj.org/wp-admin/wp-json/...` which returns 404.
+
+**Fix:** Added URL normalization in the WordPress connect route:
+```typescript
+const normalizedUrl = siteUrl.replace(/\/$/, '').replace(/\/(wp-admin|wp-login\.php|wp-json)(\/.*)?$/, '')
+```
+Now accepts any WordPress URL format and strips admin/API path suffixes before storing.
+
+---
+
+### Issue 33: Date range picker only had 3 presets (7/30/90 days)
+**Fix:** Rewrote `components/analytics/date-range-picker.tsx` with 9 presets (Last 7, 14, 30, 90 days, Last 6 months, This month, Last month, This year, Last year) plus a custom range section with two native `<input type="date">` fields. All analytics pages automatically got the upgrade since they all import from this component.

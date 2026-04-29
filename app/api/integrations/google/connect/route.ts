@@ -1,18 +1,25 @@
 import crypto from 'crypto'
+import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { buildGoogleOAuthUrl } from '@/services/google/auth'
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth()
-  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const state = crypto.randomBytes(32).toString('hex')
+  const { searchParams } = new URL(req.url)
+  const service = searchParams.get('service') ?? 'ga4'
+
+  const csrf = crypto.randomBytes(32).toString('hex')
+  const state = `${service}:${csrf}`
   const url = buildGoogleOAuthUrl(state)
 
-  const res = Response.json({ url })
-  res.headers.set(
-    'Set-Cookie',
-    `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`
-  )
+  const res = NextResponse.json({ url })
+  res.cookies.set('oauth_state', state, {
+    httpOnly: true,
+    maxAge: 600,
+    sameSite: 'lax',
+    path: '/',
+  })
   return res
 }

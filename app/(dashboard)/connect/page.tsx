@@ -8,17 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  Activity,
-  BarChart3,
-  Search,
-  Share2,
-  Globe,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Music2,
-  Briefcase,
+  Activity, BarChart3, Search, Share2, Globe, Loader2,
+  CheckCircle2, XCircle, AlertCircle, Music2, Briefcase,
 } from 'lucide-react'
 
 interface ConnectionStatus {
@@ -29,11 +20,16 @@ interface ConnectionStatus {
   linkedin: boolean
   propertyId: string | null
   gscSiteUrl: string | null
+  googleAdsCustomerId: string | null
   wpSiteUrl: string | null
   metaAdAccountId: string | null
   tiktokAdvertiserId: string | null
   linkedinAccountId: string | null
 }
+
+interface Ga4Property { id: string; name: string; account: string }
+interface GscSite { url: string; permission: string }
+type ActivePicker = 'ga4' | 'gsc' | 'ads' | null
 
 const integrations = [
   {
@@ -111,26 +107,49 @@ const ERROR_MESSAGES: Record<string, string> = {
   token_exchange_failed: 'Could not exchange the authorization code. Check your app credentials.',
 }
 
+const PARTIAL_LABELS: Record<string, string> = {
+  google: 'Connected — select property',
+  'google-ads': 'Connected — needs customer ID',
+  gsc: 'Connected — select site',
+  meta: 'Connected — needs ad account',
+  tiktok: 'Connected — needs advertiser ID',
+  linkedin: 'Connected — needs account ID',
+}
+
 function ConnectPageInner() {
   const searchParams = useSearchParams()
+
   const [status, setStatus] = useState<ConnectionStatus>({
     google: false, meta: false, wordpress: false, tiktok: false, linkedin: false,
-    propertyId: null, gscSiteUrl: null, wpSiteUrl: null, metaAdAccountId: null,
-    tiktokAdvertiserId: null, linkedinAccountId: null,
+    propertyId: null, gscSiteUrl: null, googleAdsCustomerId: null,
+    wpSiteUrl: null, metaAdAccountId: null, tiktokAdvertiserId: null, linkedinAccountId: null,
   })
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // GA4 property ID
-  const [propertyInput, setPropertyInput] = useState('')
-  const [propertyLoading, setPropertyLoading] = useState(false)
-  const [propertyError, setPropertyError] = useState('')
+  const [activePicker, setActivePicker] = useState<ActivePicker>(null)
 
-  // GSC site URL
-  const [gscInput, setGscInput] = useState('')
-  const [gscLoading, setGscLoading] = useState(false)
-  const [gscError, setGscError] = useState('')
+  // GA4 picker
+  const [ga4Properties, setGa4Properties] = useState<Ga4Property[]>([])
+  const [ga4PickerLoading, setGa4PickerLoading] = useState(false)
+  const [ga4PickerError, setGa4PickerError] = useState('')
+  const [selectedGa4, setSelectedGa4] = useState('')
+  const [ga4SaveLoading, setGa4SaveLoading] = useState(false)
+  const [ga4SaveError, setGa4SaveError] = useState('')
+
+  // GSC picker
+  const [gscSites, setGscSites] = useState<GscSite[]>([])
+  const [gscPickerLoading, setGscPickerLoading] = useState(false)
+  const [gscPickerError, setGscPickerError] = useState('')
+  const [selectedGsc, setSelectedGsc] = useState('')
+  const [gscSaveLoading, setGscSaveLoading] = useState(false)
+  const [gscSaveError, setGscSaveError] = useState('')
+
+  // Ads picker (manual)
+  const [adsCustomerInput, setAdsCustomerInput] = useState('')
+  const [adsCustomerLoading, setAdsCustomerLoading] = useState(false)
+  const [adsCustomerError, setAdsCustomerError] = useState('')
 
   // WordPress form
   const [wpFormOpen, setWpFormOpen] = useState(false)
@@ -140,17 +159,15 @@ function ConnectPageInner() {
   const [wpLoading, setWpLoading] = useState(false)
   const [wpError, setWpError] = useState('')
 
-  // Meta ad account ID
+  // Meta / TikTok / LinkedIn (manual IDs, shown via banner after OAuth)
   const [metaAdInput, setMetaAdInput] = useState('')
   const [metaAdLoading, setMetaAdLoading] = useState(false)
   const [metaAdError, setMetaAdError] = useState('')
 
-  // TikTok advertiser ID
   const [tiktokAdInput, setTiktokAdInput] = useState('')
   const [tiktokAdLoading, setTiktokAdLoading] = useState(false)
   const [tiktokAdError, setTiktokAdError] = useState('')
 
-  // LinkedIn account ID
   const [linkedinAdInput, setLinkedinAdInput] = useState('')
   const [linkedinAdLoading, setLinkedinAdLoading] = useState(false)
   const [linkedinAdError, setLinkedinAdError] = useState('')
@@ -166,28 +183,81 @@ function ConnectPageInner() {
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
+  const openGa4Picker = useCallback(async () => {
+    setActivePicker('ga4')
+    setGa4PickerLoading(true)
+    setGa4PickerError('')
+    setSelectedGa4('')
+    setGa4SaveError('')
+    try {
+      const res = await fetch('/api/integrations/google/ga4-properties')
+      const data = await res.json()
+      if (res.ok) {
+        setGa4Properties(data.properties ?? [])
+      } else {
+        setGa4PickerError(data.error ?? 'Failed to load properties.')
+      }
+    } catch {
+      setGa4PickerError('Network error. Please try again.')
+    } finally {
+      setGa4PickerLoading(false)
+    }
+  }, [])
+
+  const openGscPicker = useCallback(async () => {
+    setActivePicker('gsc')
+    setGscPickerLoading(true)
+    setGscPickerError('')
+    setSelectedGsc('')
+    setGscSaveError('')
+    try {
+      const res = await fetch('/api/integrations/google/gsc-sites')
+      const data = await res.json()
+      if (res.ok) {
+        setGscSites(data.sites ?? [])
+      } else {
+        setGscPickerError(data.error ?? 'Failed to load sites.')
+      }
+    } catch {
+      setGscPickerError('Network error. Please try again.')
+    } finally {
+      setGscPickerLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const googleConnected = searchParams.get('google')
-    const metaConnected = searchParams.get('meta')
-    const tiktokConnected = searchParams.get('tiktok')
-    const linkedinConnected = searchParams.get('linkedin')
+    const googleParam = searchParams.get('google')
+    const metaParam = searchParams.get('meta')
+    const tiktokParam = searchParams.get('tiktok')
+    const linkedinParam = searchParams.get('linkedin')
     const error = searchParams.get('error')
-    if (googleConnected === 'connected') {
-      setToast({ type: 'success', message: 'Google account connected.' })
+
+    if (googleParam === 'connected') {
+      const service = searchParams.get('service') ?? 'ga4'
       fetchStatus()
-    } else if (metaConnected === 'connected') {
+      if (service === 'ga4') {
+        setToast({ type: 'success', message: 'Google connected — select your GA4 property below.' })
+        openGa4Picker()
+      } else if (service === 'gsc') {
+        setToast({ type: 'success', message: 'Google connected — select your Search Console site below.' })
+        openGscPicker()
+      } else if (service === 'ads') {
+        setToast({ type: 'success', message: 'Google connected — enter your Ads customer ID below.' })
+        setActivePicker('ads')
+      }
+    } else if (metaParam === 'connected') {
       setToast({ type: 'success', message: 'Meta account connected.' })
       fetchStatus()
-    } else if (tiktokConnected === 'connected') {
+    } else if (tiktokParam === 'connected') {
       setToast({ type: 'success', message: 'TikTok account connected.' })
       fetchStatus()
-    } else if (linkedinConnected === 'connected') {
+    } else if (linkedinParam === 'connected') {
       setToast({ type: 'success', message: 'LinkedIn account connected.' })
       fetchStatus()
     } else if (error) {
       setToast({ type: 'error', message: ERROR_MESSAGES[error] ?? 'An error occurred.' })
     }
-  }, [searchParams, fetchStatus])
+  }, [searchParams, fetchStatus, openGa4Picker, openGscPicker])
 
   useEffect(() => {
     if (!toast) return
@@ -197,9 +267,17 @@ function ConnectPageInner() {
 
   async function handleConnect(id: string) {
     if (id === 'google' || id === 'google-ads' || id === 'gsc') {
+      const service = id === 'google' ? 'ga4' : id === 'google-ads' ? 'ads' : 'gsc'
+
+      if (status.google) {
+        if (service === 'ga4') { openGa4Picker(); return }
+        if (service === 'gsc') { openGscPicker(); return }
+        if (service === 'ads') { setActivePicker('ads'); setAdsCustomerError(''); setAdsCustomerInput(''); return }
+      }
+
       setActionLoading(id)
       try {
-        const res = await fetch('/api/integrations/google/connect')
+        const res = await fetch(`/api/integrations/google/connect?service=${service}`)
         if (res.ok) {
           const { url } = await res.json()
           window.location.href = url
@@ -213,200 +291,122 @@ function ConnectPageInner() {
       }
       return
     }
-    if (id === 'wordpress') {
-      setWpFormOpen(true)
-      return
-    }
+
+    if (id === 'wordpress') { setWpFormOpen(true); return }
+
     if (id === 'meta') {
       setActionLoading(id)
       try {
         const res = await fetch('/api/integrations/meta/connect')
-        if (res.ok) {
-          const { url } = await res.json()
-          window.location.href = url
-        } else {
-          setToast({ type: 'error', message: 'Failed to start Meta authorization.' })
-          setActionLoading(null)
-        }
-      } catch {
-        setToast({ type: 'error', message: 'Network error. Please try again.' })
-        setActionLoading(null)
-      }
+        if (res.ok) { window.location.href = (await res.json()).url }
+        else { setToast({ type: 'error', message: 'Failed to start Meta authorization.' }); setActionLoading(null) }
+      } catch { setToast({ type: 'error', message: 'Network error. Please try again.' }); setActionLoading(null) }
       return
     }
+
     if (id === 'tiktok') {
       setActionLoading(id)
       try {
         const res = await fetch('/api/integrations/tiktok/connect')
-        if (res.ok) {
-          const { url } = await res.json()
-          window.location.href = url
-        } else {
-          setToast({ type: 'error', message: 'Failed to start TikTok authorization.' })
-          setActionLoading(null)
-        }
-      } catch {
-        setToast({ type: 'error', message: 'Network error. Please try again.' })
-        setActionLoading(null)
-      }
+        if (res.ok) { window.location.href = (await res.json()).url }
+        else { setToast({ type: 'error', message: 'Failed to start TikTok authorization.' }); setActionLoading(null) }
+      } catch { setToast({ type: 'error', message: 'Network error. Please try again.' }); setActionLoading(null) }
       return
     }
+
     if (id === 'linkedin') {
       setActionLoading(id)
       try {
         const res = await fetch('/api/integrations/linkedin/connect')
-        if (res.ok) {
-          const { url } = await res.json()
-          window.location.href = url
-        } else {
-          setToast({ type: 'error', message: 'Failed to start LinkedIn authorization.' })
-          setActionLoading(null)
-        }
-      } catch {
-        setToast({ type: 'error', message: 'Network error. Please try again.' })
-        setActionLoading(null)
-      }
+        if (res.ok) { window.location.href = (await res.json()).url }
+        else { setToast({ type: 'error', message: 'Failed to start LinkedIn authorization.' }); setActionLoading(null) }
+      } catch { setToast({ type: 'error', message: 'Network error. Please try again.' }); setActionLoading(null) }
     }
   }
 
   async function handleDisconnect(id: string) {
-    if (id === 'google' || id === 'google-ads' || id === 'gsc') {
-      setActionLoading(id)
-      try {
-        const res = await fetch('/api/integrations/google/disconnect', { method: 'POST' })
-        if (res.ok) {
-          await fetchStatus()
-          setToast({ type: 'success', message: 'Google account disconnected.' })
-        }
-      } finally {
-        setActionLoading(null)
+    const endpoint =
+      id === 'google' || id === 'google-ads' || id === 'gsc' ? '/api/integrations/google/disconnect' :
+      id === 'wordpress' ? '/api/integrations/wordpress/disconnect' :
+      id === 'meta' ? '/api/integrations/meta/disconnect' :
+      id === 'tiktok' ? '/api/integrations/tiktok/disconnect' :
+      id === 'linkedin' ? '/api/integrations/linkedin/disconnect' : null
+
+    if (!endpoint) return
+    setActionLoading(id)
+    try {
+      const res = await fetch(endpoint, { method: 'POST' })
+      if (res.ok) {
+        if (id === 'google' || id === 'google-ads' || id === 'gsc') setActivePicker(null)
+        await fetchStatus()
+        setToast({ type: 'success', message: `${id.charAt(0).toUpperCase() + id.slice(1).replace('-', ' ')} disconnected.` })
       }
-      return
-    }
-    if (id === 'wordpress') {
-      setActionLoading(id)
-      try {
-        const res = await fetch('/api/integrations/wordpress/disconnect', { method: 'POST' })
-        if (res.ok) {
-          await fetchStatus()
-          setToast({ type: 'success', message: 'WordPress disconnected.' })
-        }
-      } finally {
-        setActionLoading(null)
-      }
-      return
-    }
-    if (id === 'meta') {
-      setActionLoading(id)
-      try {
-        const res = await fetch('/api/integrations/meta/disconnect', { method: 'POST' })
-        if (res.ok) {
-          await fetchStatus()
-          setToast({ type: 'success', message: 'Meta account disconnected.' })
-        }
-      } finally {
-        setActionLoading(null)
-      }
-      return
-    }
-    if (id === 'tiktok') {
-      setActionLoading(id)
-      try {
-        const res = await fetch('/api/integrations/tiktok/disconnect', { method: 'POST' })
-        if (res.ok) {
-          await fetchStatus()
-          setToast({ type: 'success', message: 'TikTok account disconnected.' })
-        }
-      } finally {
-        setActionLoading(null)
-      }
-      return
-    }
-    if (id === 'linkedin') {
-      setActionLoading(id)
-      try {
-        const res = await fetch('/api/integrations/linkedin/disconnect', { method: 'POST' })
-        if (res.ok) {
-          await fetchStatus()
-          setToast({ type: 'success', message: 'LinkedIn account disconnected.' })
-        }
-      } finally {
-        setActionLoading(null)
-      }
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  async function handleSavePropertyId() {
-    setPropertyError('')
-    if (!propertyInput.trim()) { setPropertyError('Property ID is required.'); return }
-    setPropertyLoading(true)
+  async function handleSaveGa4() {
+    setGa4SaveError('')
+    if (!selectedGa4) { setGa4SaveError('Please select a property.'); return }
+    setGa4SaveLoading(true)
     try {
       const res = await fetch('/api/integrations/google/property', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId: propertyInput.trim() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId: selectedGa4 }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetchStatus()
-        setPropertyInput('')
-        setToast({ type: 'success', message: 'GA4 property ID saved.' })
-      } else {
-        setPropertyError(data.error ?? 'Failed to save property ID.')
-      }
-    } finally {
-      setPropertyLoading(false)
-    }
+      if (res.ok) { await fetchStatus(); setActivePicker(null); setToast({ type: 'success', message: 'GA4 property saved.' }) }
+      else { setGa4SaveError(data.error ?? 'Failed to save.') }
+    } finally { setGa4SaveLoading(false) }
   }
 
-  async function handleSaveGscSite() {
-    setGscError('')
-    if (!gscInput.trim()) { setGscError('Site URL is required.'); return }
-    setGscLoading(true)
+  async function handleSaveGsc() {
+    setGscSaveError('')
+    if (!selectedGsc) { setGscSaveError('Please select a site.'); return }
+    setGscSaveLoading(true)
     try {
       const res = await fetch('/api/integrations/google/gsc-site', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteUrl: gscInput.trim() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteUrl: selectedGsc }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetchStatus()
-        setGscInput('')
-        setToast({ type: 'success', message: 'Search Console site saved.' })
-      } else {
-        setGscError(data.error ?? 'Failed to save site URL.')
-      }
-    } finally {
-      setGscLoading(false)
-    }
+      if (res.ok) { await fetchStatus(); setActivePicker(null); setToast({ type: 'success', message: 'Search Console site saved.' }) }
+      else { setGscSaveError(data.error ?? 'Failed to save.') }
+    } finally { setGscSaveLoading(false) }
+  }
+
+  async function handleSaveAds() {
+    setAdsCustomerError('')
+    if (!adsCustomerInput.trim()) { setAdsCustomerError('Customer ID is required.'); return }
+    setAdsCustomerLoading(true)
+    try {
+      const res = await fetch('/api/integrations/google/ads-customer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: adsCustomerInput.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) { await fetchStatus(); setActivePicker(null); setAdsCustomerInput(''); setToast({ type: 'success', message: 'Google Ads customer ID saved.' }) }
+      else { setAdsCustomerError(data.error ?? 'Failed to save.') }
+    } finally { setAdsCustomerLoading(false) }
   }
 
   async function handleConnectWordPress() {
     setWpError('')
-    if (!wpSiteUrl.trim() || !wpUsername.trim() || !wpAppPassword.trim()) {
-      setWpError('All fields are required.')
-      return
-    }
+    if (!wpSiteUrl.trim() || !wpUsername.trim() || !wpAppPassword.trim()) { setWpError('All fields are required.'); return }
     setWpLoading(true)
     try {
       const res = await fetch('/api/integrations/wordpress/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteUrl: wpSiteUrl.trim(), username: wpUsername.trim(), appPassword: wpAppPassword.trim() }),
       })
       const data = await res.json()
       if (res.ok) {
-        await fetchStatus()
-        setWpFormOpen(false)
+        await fetchStatus(); setWpFormOpen(false)
         setWpSiteUrl(''); setWpUsername(''); setWpAppPassword('')
         setToast({ type: 'success', message: 'WordPress connected.' })
-      } else {
-        setWpError(data.error ?? 'Failed to connect WordPress.')
-      }
-    } finally {
-      setWpLoading(false)
-    }
+      } else { setWpError(data.error ?? 'Failed to connect WordPress.') }
+    } finally { setWpLoading(false) }
   }
 
   async function handleSaveMetaAdAccount() {
@@ -415,21 +415,13 @@ function ConnectPageInner() {
     setMetaAdLoading(true)
     try {
       const res = await fetch('/api/integrations/meta/ad-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adAccountId: metaAdInput.trim() }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetchStatus()
-        setMetaAdInput('')
-        setToast({ type: 'success', message: 'Meta ad account ID saved.' })
-      } else {
-        setMetaAdError(data.error ?? 'Failed to save ad account ID.')
-      }
-    } finally {
-      setMetaAdLoading(false)
-    }
+      if (res.ok) { await fetchStatus(); setMetaAdInput(''); setToast({ type: 'success', message: 'Meta ad account ID saved.' }) }
+      else { setMetaAdError(data.error ?? 'Failed to save.') }
+    } finally { setMetaAdLoading(false) }
   }
 
   async function handleSaveTikTokAdvertiserId() {
@@ -438,21 +430,13 @@ function ConnectPageInner() {
     setTiktokAdLoading(true)
     try {
       const res = await fetch('/api/integrations/tiktok/ad-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ advertiserId: tiktokAdInput.trim() }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetchStatus()
-        setTiktokAdInput('')
-        setToast({ type: 'success', message: 'TikTok advertiser ID saved.' })
-      } else {
-        setTiktokAdError(data.error ?? 'Failed to save advertiser ID.')
-      }
-    } finally {
-      setTiktokAdLoading(false)
-    }
+      if (res.ok) { await fetchStatus(); setTiktokAdInput(''); setToast({ type: 'success', message: 'TikTok advertiser ID saved.' }) }
+      else { setTiktokAdError(data.error ?? 'Failed to save.') }
+    } finally { setTiktokAdLoading(false) }
   }
 
   async function handleSaveLinkedInAccountId() {
@@ -461,67 +445,159 @@ function ConnectPageInner() {
     setLinkedinAdLoading(true)
     try {
       const res = await fetch('/api/integrations/linkedin/ad-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: linkedinAdInput.trim() }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetchStatus()
-        setLinkedinAdInput('')
-        setToast({ type: 'success', message: 'LinkedIn account ID saved.' })
-      } else {
-        setLinkedinAdError(data.error ?? 'Failed to save account ID.')
-      }
-    } finally {
-      setLinkedinAdLoading(false)
-    }
+      if (res.ok) { await fetchStatus(); setLinkedinAdInput(''); setToast({ type: 'success', message: 'LinkedIn account ID saved.' }) }
+      else { setLinkedinAdError(data.error ?? 'Failed to save.') }
+    } finally { setLinkedinAdLoading(false) }
   }
 
-  const googleConnected = status.google
-  const needsPropertyId = googleConnected && !status.propertyId
-  const needsGscSite = googleConnected && !status.gscSiteUrl
+  function getServiceState(id: string): 'not-connected' | 'partial' | 'connected' {
+    if (id === 'google') {
+      if (!status.google) return 'not-connected'
+      return status.propertyId ? 'connected' : 'partial'
+    }
+    if (id === 'google-ads') {
+      if (!status.google) return 'not-connected'
+      return status.googleAdsCustomerId ? 'connected' : 'partial'
+    }
+    if (id === 'gsc') {
+      if (!status.google) return 'not-connected'
+      return status.gscSiteUrl ? 'connected' : 'partial'
+    }
+    if (id === 'wordpress') return status.wordpress ? 'connected' : 'not-connected'
+    if (id === 'meta') {
+      if (!status.meta) return 'not-connected'
+      return status.metaAdAccountId ? 'connected' : 'partial'
+    }
+    if (id === 'tiktok') {
+      if (!status.tiktok) return 'not-connected'
+      return status.tiktokAdvertiserId ? 'connected' : 'partial'
+    }
+    if (id === 'linkedin') {
+      if (!status.linkedin) return 'not-connected'
+      return status.linkedinAccountId ? 'connected' : 'partial'
+    }
+    return 'not-connected'
+  }
+
+  function renderGa4Picker() {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">Select your GA4 property</p>
+        {ga4PickerLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading properties…
+          </div>
+        ) : ga4PickerError ? (
+          <p className="text-sm text-red-600 dark:text-red-400 mb-3">{ga4PickerError}</p>
+        ) : ga4Properties.length === 0 ? (
+          <p className="text-sm text-gray-500 mb-3">No GA4 properties found in your account.</p>
+        ) : (
+          <select
+            value={selectedGa4}
+            onChange={(e) => setSelectedGa4(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="">— select a property —</option>
+            {ga4Properties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} · {p.account}</option>
+            ))}
+          </select>
+        )}
+        {ga4SaveError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{ga4SaveError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={handleSaveGa4} disabled={ga4SaveLoading || ga4PickerLoading || ga4Properties.length === 0} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white">
+            {ga4SaveLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
+          </Button>
+          <Button variant="outline" onClick={() => setActivePicker(null)} className="shrink-0">Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
+  function renderGscPicker() {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">Select your Search Console site</p>
+        {gscPickerLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading sites…
+          </div>
+        ) : gscPickerError ? (
+          <p className="text-sm text-red-600 dark:text-red-400 mb-3">{gscPickerError}</p>
+        ) : gscSites.length === 0 ? (
+          <p className="text-sm text-gray-500 mb-3">No verified sites found in your Search Console.</p>
+        ) : (
+          <select
+            value={selectedGsc}
+            onChange={(e) => setSelectedGsc(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">— select a site —</option>
+            {gscSites.map((s) => (
+              <option key={s.url} value={s.url}>{s.url}</option>
+            ))}
+          </select>
+        )}
+        {gscSaveError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{gscSaveError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={handleSaveGsc} disabled={gscSaveLoading || gscPickerLoading || gscSites.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white">
+            {gscSaveLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
+          </Button>
+          <Button variant="outline" onClick={() => setActivePicker(null)} className="shrink-0">Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
+  function renderAdsPicker() {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Enter your Google Ads Customer ID</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Find it in Google Ads → click the help icon → Customer ID. Format: 123-456-7890
+        </p>
+        <input
+          type="text"
+          value={adsCustomerInput}
+          onChange={(e) => setAdsCustomerInput(e.target.value)}
+          placeholder="123-456-7890"
+          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {adsCustomerError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{adsCustomerError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={handleSaveAds} disabled={adsCustomerLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+            {adsCustomerLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
+          </Button>
+          <Button variant="outline" onClick={() => { setActivePicker(null); setAdsCustomerInput(''); setAdsCustomerError('') }} className="shrink-0">Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
+  function getPickerForCard(id: string) {
+    if (id === 'google' && activePicker === 'ga4') return renderGa4Picker()
+    if (id === 'google-ads' && activePicker === 'ads') return renderAdsPicker()
+    if (id === 'gsc' && activePicker === 'gsc') return renderGscPicker()
+    return null
+  }
+
   const needsMetaAdAccount = status.meta && !status.metaAdAccountId
   const needsTikTokAdvertiserId = status.tiktok && !status.tiktokAdvertiserId
   const needsLinkedInAccountId = status.linkedin && !status.linkedinAccountId
 
-  function getConnectedStatus(id: string) {
-    if (id === 'google') return status.google
-    if (id === 'google-ads') return status.google
-    if (id === 'gsc') return status.google && !!status.gscSiteUrl
-    if (id === 'wordpress') return status.wordpress
-    if (id === 'meta') return status.meta && !!status.metaAdAccountId
-    if (id === 'tiktok') return status.tiktok && !!status.tiktokAdvertiserId
-    if (id === 'linkedin') return status.linkedin && !!status.linkedinAccountId
-    return false
-  }
-
-  function getBadgeLabel(id: string) {
-    if (id === 'google') return status.propertyId ? 'Connected' : 'Connected — needs property ID'
-    if (id === 'google-ads') return 'Connected'
-    if (id === 'gsc') return status.gscSiteUrl ? 'Connected' : 'Connected — needs site URL'
-    if (id === 'wordpress') return 'Connected'
-    if (id === 'meta') return status.metaAdAccountId ? 'Connected' : 'Connected — needs ad account ID'
-    if (id === 'tiktok') return status.tiktokAdvertiserId ? 'Connected' : 'Connected — needs advertiser ID'
-    if (id === 'linkedin') return status.linkedinAccountId ? 'Connected' : 'Connected — needs account ID'
-    return 'Connected'
-  }
-
   return (
     <div className="max-w-5xl mx-auto py-6">
       {toast && (
-        <div
-          className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${
-            toast.type === 'success'
-              ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-          }`}
-        >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0" />
-          )}
+        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${
+          toast.type === 'success'
+            ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+            : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
           {toast.message}
         </div>
       )}
@@ -533,89 +609,19 @@ function ConnectPageInner() {
         </p>
       </div>
 
-      {/* GA4 property ID prompt */}
-      {needsPropertyId && (
-        <div className="mb-6 p-4 border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-          <p className="text-sm font-medium text-orange-800 dark:text-orange-300 mb-1">
-            One more step — enter your GA4 Property ID
-          </p>
-          <p className="text-xs text-orange-700 dark:text-orange-400 mb-3">
-            Google Analytics → Admin → Property Settings. Format:{' '}
-            <code className="font-mono bg-orange-100 dark:bg-orange-900/50 px-1 rounded">properties/XXXXXXXXX</code>
-          </p>
-          <div className="flex items-start gap-2">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={propertyInput}
-                onChange={(e) => setPropertyInput(e.target.value)}
-                placeholder="properties/123456789"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {propertyError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{propertyError}</p>}
-            </div>
-            <Button onClick={handleSavePropertyId} disabled={propertyLoading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-              {propertyLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              Save
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* GSC site URL prompt */}
-      {needsGscSite && (
-        <div className="mb-6 p-4 border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-          <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
-            Add your Search Console site URL
-          </p>
-          <p className="text-xs text-purple-700 dark:text-purple-400 mb-3">
-            Find it in Search Console → Property selector. Examples:{' '}
-            <code className="font-mono bg-purple-100 dark:bg-purple-900/50 px-1 rounded">https://example.com/</code>{' '}
-            or{' '}
-            <code className="font-mono bg-purple-100 dark:bg-purple-900/50 px-1 rounded">sc-domain:example.com</code>
-          </p>
-          <div className="flex items-start gap-2">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={gscInput}
-                onChange={(e) => setGscInput(e.target.value)}
-                placeholder="https://example.com/"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {gscError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{gscError}</p>}
-            </div>
-            <Button onClick={handleSaveGscSite} disabled={gscLoading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-              {gscLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              Save
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* TikTok advertiser ID prompt */}
       {needsTikTokAdvertiserId && (
         <div className="mb-6 p-4 border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-          <p className="text-sm font-medium text-teal-800 dark:text-teal-300 mb-1">
-            One more step — enter your TikTok Advertiser ID
-          </p>
-          <p className="text-xs text-teal-700 dark:text-teal-400 mb-3">
-            Find it in TikTok Ads Manager → Account settings. Numeric ID only.
-          </p>
+          <p className="text-sm font-medium text-teal-800 dark:text-teal-300 mb-1">One more step — enter your TikTok Advertiser ID</p>
+          <p className="text-xs text-teal-700 dark:text-teal-400 mb-3">Find it in TikTok Ads Manager → Account settings. Numeric ID only.</p>
           <div className="flex items-start gap-2">
             <div className="flex-1">
-              <input
-                type="text"
-                value={tiktokAdInput}
-                onChange={(e) => setTiktokAdInput(e.target.value)}
-                placeholder="1234567890"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
+              <input type="text" value={tiktokAdInput} onChange={(e) => setTiktokAdInput(e.target.value)} placeholder="1234567890"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500" />
               {tiktokAdError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{tiktokAdError}</p>}
             </div>
             <Button onClick={handleSaveTikTokAdvertiserId} disabled={tiktokAdLoading} className="bg-teal-500 hover:bg-teal-600 text-white shrink-0">
-              {tiktokAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              Save
+              {tiktokAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
             </Button>
           </div>
         </div>
@@ -624,26 +630,16 @@ function ConnectPageInner() {
       {/* LinkedIn account ID prompt */}
       {needsLinkedInAccountId && (
         <div className="mb-6 p-4 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-            One more step — enter your LinkedIn Ad Account ID
-          </p>
-          <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
-            Find it in LinkedIn Campaign Manager → Account Assets. Numeric ID only.
-          </p>
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">One more step — enter your LinkedIn Ad Account ID</p>
+          <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">Find it in LinkedIn Campaign Manager → Account Assets. Numeric ID only.</p>
           <div className="flex items-start gap-2">
             <div className="flex-1">
-              <input
-                type="text"
-                value={linkedinAdInput}
-                onChange={(e) => setLinkedinAdInput(e.target.value)}
-                placeholder="1234567890"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input type="text" value={linkedinAdInput} onChange={(e) => setLinkedinAdInput(e.target.value)} placeholder="1234567890"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               {linkedinAdError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{linkedinAdError}</p>}
             </div>
             <Button onClick={handleSaveLinkedInAccountId} disabled={linkedinAdLoading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-              {linkedinAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              Save
+              {linkedinAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
             </Button>
           </div>
         </div>
@@ -652,27 +648,19 @@ function ConnectPageInner() {
       {/* Meta ad account ID prompt */}
       {needsMetaAdAccount && (
         <div className="mb-6 p-4 border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
-          <p className="text-sm font-medium text-pink-800 dark:text-pink-300 mb-1">
-            One more step — enter your Meta Ad Account ID
-          </p>
+          <p className="text-sm font-medium text-pink-800 dark:text-pink-300 mb-1">One more step — enter your Meta Ad Account ID</p>
           <p className="text-xs text-pink-700 dark:text-pink-400 mb-3">
             Find it in Meta Business Manager → Ad Accounts. Format:{' '}
             <code className="font-mono bg-pink-100 dark:bg-pink-900/50 px-1 rounded">act_XXXXXXXXXX</code>
           </p>
           <div className="flex items-start gap-2">
             <div className="flex-1">
-              <input
-                type="text"
-                value={metaAdInput}
-                onChange={(e) => setMetaAdInput(e.target.value)}
-                placeholder="act_1234567890"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input type="text" value={metaAdInput} onChange={(e) => setMetaAdInput(e.target.value)} placeholder="act_1234567890"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               {metaAdError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{metaAdError}</p>}
             </div>
             <Button onClick={handleSaveMetaAdAccount} disabled={metaAdLoading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-              {metaAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              Save
+              {metaAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
             </Button>
           </div>
         </div>
@@ -680,16 +668,17 @@ function ConnectPageInner() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {integrations.map((integration) => {
-          const connected = getConnectedStatus(integration.id)
+          const serviceState = getServiceState(integration.id)
+          const connected = serviceState === 'connected'
+          const partial = serviceState === 'partial'
           const isActive = actionLoading === integration.id
           const isAvailable = integration.phase === 2
           const showWpForm = integration.id === 'wordpress' && wpFormOpen && !connected
+          const pickerPanel = getPickerForCard(integration.id)
+          const isGoogleService = integration.id === 'google' || integration.id === 'google-ads' || integration.id === 'gsc'
 
           return (
-            <Card
-              key={integration.id}
-              className="dark:bg-gray-900 border-gray-200 dark:border-gray-800 flex flex-col"
-            >
+            <Card key={integration.id} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800 flex flex-col">
               <CardHeader className="flex flex-row items-start justify-between pb-4">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${integration.bg} ${integration.color}`}>
@@ -702,15 +691,17 @@ function ConnectPageInner() {
                         <span className="inline-block w-16 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                       ) : connected ? (
                         <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 font-medium border-0 gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {getBadgeLabel(integration.id)}
+                          <CheckCircle2 className="w-3 h-3" />Connected
+                        </Badge>
+                      ) : partial ? (
+                        <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400 font-medium border-0 gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {PARTIAL_LABELS[integration.id] ?? 'Needs setup'}
                         </Badge>
                       ) : isAvailable ? (
                         <Badge variant="outline" className="text-gray-500 font-medium">Not Connected</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-gray-400 font-medium">
-                          Phase {integration.phase}
-                        </Badge>
+                        <Badge variant="outline" className="text-gray-400 font-medium">Phase {integration.phase}</Badge>
                       )}
                     </CardDescription>
                   </div>
@@ -718,14 +709,11 @@ function ConnectPageInner() {
               </CardHeader>
 
               <CardContent className="flex-1 flex flex-col justify-between">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  {integration.description}
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{integration.description}</p>
 
-                {/* WordPress inline form */}
                 {showWpForm && (
                   <div className="mb-4 space-y-3">
-                    <InputField label="Site URL" value={wpSiteUrl} onChange={setWpSiteUrl} placeholder="https://example.com" />
+                    <InputField label="Site URL (root domain, not /wp-admin)" value={wpSiteUrl} onChange={setWpSiteUrl} placeholder="https://abilityschoolnj.org" />
                     <InputField label="Username" value={wpUsername} onChange={setWpUsername} placeholder="admin" />
                     <InputField label="Application Password" value={wpAppPassword} onChange={setWpAppPassword} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" type="password" />
                     {wpError && <p className="text-xs text-red-600 dark:text-red-400">{wpError}</p>}
@@ -734,27 +722,42 @@ function ConnectPageInner() {
                     </p>
                     <div className="flex gap-2">
                       <Button onClick={handleConnectWordPress} disabled={wpLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
-                        {wpLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-                        Save & Connect
+                        {wpLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save & Connect
                       </Button>
-                      <Button variant="outline" onClick={() => { setWpFormOpen(false); setWpError('') }} className="shrink-0">
-                        Cancel
-                      </Button>
+                      <Button variant="outline" onClick={() => { setWpFormOpen(false); setWpError('') }} className="shrink-0">Cancel</Button>
                     </div>
                   </div>
                 )}
 
-                {!showWpForm && (
+                {pickerPanel}
+
+                {!showWpForm && !pickerPanel && (
                   isAvailable ? (
                     connected ? (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950"
+                          onClick={() => handleDisconnect(integration.id)}
+                          disabled={isActive}
+                        >
+                          {isActive ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                          Disconnect
+                        </Button>
+                        {isGoogleService && (
+                          <Button variant="outline" className="shrink-0" onClick={() => handleConnect(integration.id)} disabled={isActive}>
+                            Change
+                          </Button>
+                        )}
+                      </div>
+                    ) : partial ? (
                       <Button
-                        variant="outline"
-                        className="w-full text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950"
-                        onClick={() => handleDisconnect(integration.id)}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-sm"
+                        onClick={() => handleConnect(integration.id)}
                         disabled={isActive}
                       >
-                        {isActive ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-                        Disconnect
+                        {isActive && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Set Up {integration.name}
                       </Button>
                     ) : (
                       <Button

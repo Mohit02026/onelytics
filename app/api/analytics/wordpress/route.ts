@@ -42,7 +42,17 @@ export async function GET(req: Request) {
 
   const siteUrl = account.propertyId ?? ''
   const credentials = decrypt(account.accessToken)
-  const report = await getWpReport(siteUrl, credentials, startDate, endDate)
+
+  let report
+  try {
+    report = await getWpReport(siteUrl, credentials, startDate, endDate)
+  } catch (e) {
+    const message = (e as Error).message ?? 'WordPress API request failed'
+    if (message.includes('401') || message.includes('403') || message.toLowerCase().includes('unauthorized')) {
+      return Response.json({ error: 'invalid_credentials', message }, { status: 401 })
+    }
+    return Response.json({ error: 'wp_api_error', message }, { status: 502 })
+  }
 
   await prisma.analyticsCache.upsert({
     where: {

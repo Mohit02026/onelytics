@@ -10,7 +10,7 @@ import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { WpReport } from '@/services/wordpress'
 
-type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
+type Status = 'loading' | 'not-connected' | 'invalid-credentials' | 'error' | 'loaded'
 
 export default function WordPressPage() {
   const [status, setStatus] = useState<Status>('loading')
@@ -25,6 +25,7 @@ export default function WordPressPage() {
         `/api/analytics/wordpress?startDate=${range.startDate}&endDate=${range.endDate}`
       )
       if (res.status === 404) { setStatus('not-connected'); return }
+      if (res.status === 401) { setStatus('invalid-credentials'); return }
       if (!res.ok) throw new Error('Failed to fetch')
       setReport(await res.json())
       setStatus('loaded')
@@ -58,11 +59,30 @@ export default function WordPressPage() {
     )
   }
 
+  if (status === 'invalid-credentials') {
+    return (
+      <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/50 rounded-2xl flex items-center justify-center mb-6">
+          <AlertCircle className="w-7 h-7 text-red-600 dark:text-red-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+          WordPress credentials invalid
+        </h2>
+        <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm">
+          The username or application password stored for your WordPress site is incorrect or has been revoked. Reconnect to update your credentials.
+        </p>
+        <Button render={<Link href="/connect" />} className="bg-blue-600 hover:bg-blue-700 text-white">
+          Reconnect WordPress
+        </Button>
+      </div>
+    )
+  }
+
   if (status === 'error') {
     return (
       <div className="flex items-center gap-3 text-red-600 dark:text-red-400 p-6">
         <AlertCircle className="w-5 h-5" />
-        <span>Failed to load WordPress data.</span>
+        <span>Failed to load WordPress data. Check that your site URL is correct and the REST API is accessible.</span>
         <Button variant="outline" size="sm" onClick={() => fetchReport(dateRange)}>Retry</Button>
       </div>
     )
