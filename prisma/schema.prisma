@@ -6,6 +6,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
 model Workspace {
   id        String   @id @default(uuid())
   name      String
@@ -15,6 +22,43 @@ model Workspace {
   users             User[]
   connectedAccounts ConnectedAccount[]
   analyticsCache    AnalyticsCache[]
+  members           WorkspaceMember[]
+  invites           WorkspaceInvite[]
+  reports           GeneratedReport[]
+}
+
+model WorkspaceMember {
+  id          String     @id @default(uuid())
+  workspaceId String     @map("workspace_id")
+  userId      String     @map("user_id")
+  role        MemberRole @default(MEMBER)
+  joinedAt    DateTime   @default(now()) @map("joined_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model WorkspaceInvite {
+  id          String     @id @default(uuid())
+  workspaceId String     @map("workspace_id")
+  email       String
+  role        MemberRole @default(MEMBER)
+  token       String     @unique
+  invitedById String?    @map("invited_by_id")
+  expiresAt   DateTime   @map("expires_at")
+  acceptedAt  DateTime?  @map("accepted_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
+  @@map("workspace_invites")
 }
 
 model ConnectedAccount {
@@ -26,6 +70,7 @@ model ConnectedAccount {
   refreshToken String?   @map("refresh_token") @db.Text
   expiresAt    DateTime? @map("expires_at")
   scope        String?
+  metadata     Json?
   connectedAt  DateTime  @default(now()) @map("connected_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -66,9 +111,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id])
   accounts      Account[]
   sessions      Session[]
+  memberships   WorkspaceMember[]
 
   @@index([workspaceId])
 }
@@ -114,4 +160,28 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+model GeneratedReport {
+  id          String       @id @default(uuid())
+  workspaceId String       @map("workspace_id")
+  title       String
+  startDate   String       // YYYY-MM-DD
+  endDate     String
+  status      ReportStatus @default(GENERATING)
+  data        Json?        // full report payload
+  summary     String?      // AI narrative
+  createdAt   DateTime     @default(now())
+  createdById String       @map("created_by_id")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("generated_reports")
 }
