@@ -8,9 +8,14 @@ import {
   BarChart3,
   Search,
   Share2,
+  Globe,
   Settings,
   Activity,
   Plug,
+  Users,
+  Music2,
+  Briefcase,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +25,14 @@ const navItems = [
   { name: 'Google Analytics', href: '/ga4', icon: BarChart3 },
   { name: 'Google Ads', href: '/google-ads', icon: Activity },
   { name: 'Search Console', href: '/search-console', icon: Search },
+  { name: 'WordPress', href: '/wordpress', icon: Globe },
   { name: 'Meta Ads', href: '/meta-ads', icon: Share2 },
+  { name: 'TikTok Ads', href: '/tiktok-ads', icon: Music2 },
+  { name: 'LinkedIn Ads', href: '/linkedin-ads', icon: Briefcase },
+  { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Connect Accounts', href: '/connect', icon: Plug },
   { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Members', href: '/settings/members', icon: Users },
 ]
 
 export function Sidebar() {
@@ -33,7 +43,8 @@ export function Sidebar() {
     fetch('/api/integrations/status')
       .then((r) => r.json())
       .then((s) => {
-        const count = [s.google, s.meta].filter(Boolean).length
+        const googleFull = s.google && !!s.propertyId && !!s.gscSiteUrl
+        const count = [googleFull, s.meta && !!s.metaAdAccountId, s.wordpress].filter(Boolean).length
         setConnectedCount(count)
       })
       .catch(() => setConnectedCount(0))
@@ -94,7 +105,7 @@ export function Sidebar() {
             Integrations
           </span>
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {connectedCount ?? '—'}/4
+            {connectedCount ?? '—'}/3
           </Badge>
         </div>
       </div>
