@@ -27,6 +27,7 @@ export interface AdsReport {
   daily: AdsDailyRow[]
   campaigns: AdsCampaign[]
   dateRange: { startDate: string; endDate: string }
+  source?: 'google-ads' | 'ga4'
 }
 
 // ─── Real Google Ads API ──────────────────────────────────────────────────────
@@ -133,6 +134,128 @@ export async function getAdsReportFromApi(
   }
 
   return { overview, daily, campaigns, dateRange: { startDate, endDate } }
+}
+
+// ─── GA4-based fallback (uses linked Google Ads data via GA4 Data API) ───────
+// When the Google Ads developer token isn't approved yet, GA4 already imports
+// cost/click/impression data from linked Ads accounts automatically.
+
+type Ga4ReportRow = {
+  dimensionValues: { value: string }[]
+  metricValues: { value: string }[]
+}
+
+type Ga4ReportResponse = {
+  rows?: Ga4ReportRow[]
+}
+
+export async function getAdsReportFromGA4(
+  accessToken: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<AdsReport> {
+  const base = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}`
+  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+  const dateRanges = [{ startDate, endDate }]
+  const adMetrics = [
+    { name: 'advertiserAdCost' },
+    { name: 'advertiserAdClicks' },
+    { name: 'advertiserAdImpressions' },
+    { name: 'conversions' },
+    { name: 'purchaseRevenue' },
+  ]
+
+  const [dailyRes, campaignRes] = await Promise.all([
+    fetch(`${base}:runReport`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        dateRanges,
+        dimensions: [{ name: 'date' }],
+        metrics: adMetrics,
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+      }),
+    }),
+    fetch(`${base}:runReport`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        dateRanges,
+        dimensions: [{ name: 'sessionCampaignName' }],
+        metrics: adMetrics,
+        orderBys: [{ metric: { metricName: 'advertiserAdCost' }, desc: true }],
+        limit: 20,
+      }),
+    }),
+  ])
+
+  if (!dailyRes.ok) {
+    const err = await dailyRes.json().catch(() => ({}))
+    throw new Error(`GA4 Ads fallback error: ${(err as { error?: { message?: string } }).error?.message ?? dailyRes.status}`)
+  }
+
+  const dailyData: Ga4ReportResponse = await dailyRes.json()
+  const campaignData: Ga4ReportResponse = campaignRes.ok ? await campaignRes.json() : { rows: [] }
+
+  // GA4 date format is YYYYMMDD → convert to YYYY-MM-DD
+  const fmtDate = (v: string) => `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`
+
+  const daily: AdsDailyRow[] = (dailyData.rows ?? []).map((row) => ({
+    date: fmtDate(row.dimensionValues[0].value),
+    spend: parseFloat(row.metricValues[0].value ?? '0'),
+    clicks: parseInt(row.metricValues[1].value ?? '0', 10),
+    impressions: parseInt(row.metricValues[2].value ?? '0', 10),
+  }))
+
+  const overviewAcc = { spend: 0, clicks: 0, impressions: 0, conversions: 0, revenue: 0 }
+  for (const d of daily) {
+    overviewAcc.spend += d.spend
+    overviewAcc.clicks += d.clicks
+    overviewAcc.impressions += d.impressions
+  }
+  // Sum conversions + revenue from daily rows directly
+  for (const row of dailyData.rows ?? []) {
+    overviewAcc.conversions += parseFloat(row.metricValues[3].value ?? '0')
+    overviewAcc.revenue += parseFloat(row.metricValues[4].value ?? '0')
+  }
+
+  const campaigns: AdsCampaign[] = (campaignData.rows ?? [])
+    .filter((row) => {
+      const name = row.dimensionValues[0].value
+      return name !== '(not set)' && name !== '(other)' && parseFloat(row.metricValues[0].value) > 0
+    })
+    .map((row) => {
+      const spend = parseFloat(row.metricValues[0].value ?? '0')
+      const clicks = parseInt(row.metricValues[1].value ?? '0', 10)
+      const impressions = parseInt(row.metricValues[2].value ?? '0', 10)
+      const revenue = parseFloat(row.metricValues[4].value ?? '0')
+      return {
+        name: row.dimensionValues[0].value,
+        spend: Math.round(spend * 100) / 100,
+        clicks,
+        impressions,
+        cpc: clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : 0,
+        roas: spend > 0 && revenue > 0 ? Math.round((revenue / spend) * 100) / 100 : 0,
+      }
+    })
+
+  const { spend, clicks, impressions } = overviewAcc
+  return {
+    overview: {
+      spend: Math.round(spend * 100) / 100,
+      clicks,
+      impressions,
+      cpc: clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : 0,
+      roas: spend > 0 && overviewAcc.revenue > 0
+        ? Math.round((overviewAcc.revenue / spend) * 100) / 100
+        : 0,
+    },
+    daily,
+    campaigns,
+    dateRange: { startDate, endDate },
+    source: 'ga4',
+  }
 }
 
 // ─── Dummy data ───────────────────────────────────────────────────────────────

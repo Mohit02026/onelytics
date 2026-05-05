@@ -6,7 +6,7 @@ import { AdsOverviewCards } from '@/components/analytics/ads-overview-cards'
 import { AdsSpendChart } from '@/components/analytics/ads-spend-chart'
 import { AdsCampaignsTable } from '@/components/analytics/ads-campaigns-table'
 import { Button } from '@/components/ui/button'
-import { Activity, RefreshCw, AlertCircle } from 'lucide-react'
+import { Activity, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { AdsReport } from '@/services/google/ads'
@@ -89,6 +89,16 @@ export default function GoogleAdsPage() {
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
+
+      {report?.source === 'ga4' && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+          <Info className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Data sourced from GA4 (linked Google Ads account). Campaign-level metrics reflect sessions attributed to Google Ads.
+            Full Google Ads API access is pending developer token approval.
+          </span>
+        </div>
+      )}
 
       {report && <AdsOverviewCards data={report.overview} />}
 

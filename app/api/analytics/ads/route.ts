@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { encrypt, decrypt } from '@/lib/encryption'
-import { getAdsReport, DUMMY_TOKEN } from '@/services/google/ads'
+import { getAdsReport, getAdsReportFromGA4, DUMMY_TOKEN } from '@/services/google/ads'
 import { refreshAccessToken } from '@/services/google/auth'
 import { z } from 'zod'
 
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
   const meta = account.metadata as Record<string, string> | null
   const customerId = meta?.googleAdsCustomerId ?? ''
-  if (!customerId) return Response.json({ error: 'Google Ads customer ID not configured' }, { status: 404 })
+  const propertyId = account.propertyId ?? ''
 
   const cacheKey = `${startDate}:${endDate}`
   const cached = await prisma.analyticsCache.findUnique({
@@ -76,10 +76,24 @@ export async function GET(req: Request) {
   }
 
   let report
-  try {
-    report = await getAdsReport(accessToken, customerId, startDate, endDate)
-  } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : 'Google Ads API error' }, { status: 502 })
+  // Try native Google Ads API first; fall back to GA4-linked data if unavailable
+  if (customerId && accessToken !== DUMMY_TOKEN) {
+    try {
+      report = await getAdsReport(accessToken, customerId, startDate, endDate)
+    } catch {
+      // Native Ads API failed (likely pending developer token approval) — fall through to GA4
+    }
+  }
+
+  if (!report) {
+    if (!propertyId) {
+      return Response.json({ error: 'Google Ads not configured and no GA4 property found' }, { status: 404 })
+    }
+    try {
+      report = await getAdsReportFromGA4(accessToken, propertyId, startDate, endDate)
+    } catch (e) {
+      return Response.json({ error: e instanceof Error ? e.message : 'Google Ads data unavailable' }, { status: 502 })
+    }
   }
 
   await prisma.analyticsCache.upsert({
