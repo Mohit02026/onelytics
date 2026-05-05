@@ -99,12 +99,18 @@ export async function getMetaReportFromApi(
   const base = `https://graph.facebook.com/${GRAPH_VERSION}`
   const insightFields = 'spend,reach,impressions,clicks,cpm,ctr,frequency,actions,action_values,purchase_roas,video_p100_watched_actions'
 
-  const [dailyRes, campaignRes] = await Promise.all([
+  const timeRange = `{"since":"${startDate}","until":"${endDate}"}`
+  const campaignInsightFields = `${insightFields},campaign_id,campaign_name`
+
+  const [dailyRes, campaignListRes, campaignInsightsRes] = await Promise.all([
     fetch(
-      `${base}/${adAccountId}/insights?fields=${insightFields}&time_range={"since":"${startDate}","until":"${endDate}"}&time_increment=1&limit=90&access_token=${accessToken}`
+      `${base}/${adAccountId}/insights?fields=${insightFields}&time_range=${timeRange}&time_increment=1&limit=90&access_token=${accessToken}`
     ),
     fetch(
-      `${base}/${adAccountId}/campaigns?fields=id,name,status,insights.date_preset(lifetime){${insightFields}}&limit=20&access_token=${accessToken}`
+      `${base}/${adAccountId}/campaigns?fields=id,name,status&limit=50&access_token=${accessToken}`
+    ),
+    fetch(
+      `${base}/${adAccountId}/insights?fields=${campaignInsightFields}&time_range=${timeRange}&level=campaign&limit=50&access_token=${accessToken}`
     ),
   ])
 
@@ -114,11 +120,18 @@ export async function getMetaReportFromApi(
   }
 
   const dailyData: { data: (InsightRow & { date_start: string })[] } = await dailyRes.json()
-  const campaignData: { data: { id: string; name: string; status: string; insights?: { data: InsightRow[] } }[] } =
-    campaignRes.ok ? await campaignRes.json() : { data: [] }
+  const campaignListData: { data: { id: string; name: string; status: string }[] } =
+    campaignListRes.ok ? await campaignListRes.json() : { data: [] }
+  const campaignInsightsData: { data: InsightRow[] } =
+    campaignInsightsRes.ok ? await campaignInsightsRes.json() : { data: [] }
+
+  const insightsByCampaignId = new Map<string, InsightRow>()
+  for (const row of campaignInsightsData.data) {
+    if (row.campaign_id) insightsByCampaignId.set(row.campaign_id, row)
+  }
 
   const daily: MetaDailyRow[] = dailyData.data.map((row) => ({
-    date: row.date_start,
+    date: row.date_start ?? '',
     spend: parseFloat(row.spend ?? '0'),
     reach: parseInt(row.reach ?? '0', 10),
     impressions: parseInt(row.impressions ?? '0', 10),
@@ -139,12 +152,11 @@ export async function getMetaReportFromApi(
   overviewAcc.ctr = overviewAcc.impressions > 0 ? (overviewAcc.clicks / overviewAcc.impressions) * 100 : 0
   overviewAcc.frequency = overviewAcc.reach > 0 ? overviewAcc.impressions / overviewAcc.reach : 0
   overviewAcc.cpa = overviewAcc.conversions > 0 ? overviewAcc.spend / overviewAcc.conversions : 0
-  // Weighted average ROAS from daily rows
   const roasRows = dailyData.data.map(parseInsightRow).filter(r => r.roas > 0)
   overviewAcc.roas = roasRows.length > 0 ? roasRows.reduce((s, r) => s + r.roas, 0) / roasRows.length : 0
 
-  const campaigns: MetaCampaign[] = campaignData.data.map((c) => {
-    const insightRow = c.insights?.data?.[0] ?? {}
+  const campaigns: MetaCampaign[] = campaignListData.data.map((c) => {
+    const insightRow = insightsByCampaignId.get(c.id) ?? {}
     const p = parseInsightRow(insightRow)
     return {
       id: c.id,

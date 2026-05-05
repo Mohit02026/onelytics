@@ -42,7 +42,14 @@ export async function GET(req: Request) {
 
   const accessToken = decrypt(account.accessToken)
   const adAccountId = account.propertyId ?? ''
-  const report = await getMetaReport(accessToken, adAccountId, startDate, endDate)
+
+  let report
+  try {
+    report = await getMetaReport(accessToken, adAccountId, startDate, endDate)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return Response.json({ error: message }, { status: 502 })
+  }
 
   await prisma.analyticsCache.upsert({
     where: {
