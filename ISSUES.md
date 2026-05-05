@@ -558,6 +558,64 @@ On next page load the route fetched fresh data with the correct `metricAggregati
 
 ---
 
+## Session: 2026-05-05 — Meta Campaigns Fix + Google Ads GA4 Fallback + DOCX Rewrite
+
+### Issue 46: Meta campaigns table still empty after v22 upgrade
+**Problem:** Meta campaigns showed no rows. Previous session upgraded API version but root cause was the inline `insights.date_preset(lifetime)` pattern — silently returns null for campaigns with no all-time data.
+
+**Fix:** Replaced single campaign call with 3 parallel calls: (1) daily account insights, (2) campaign list (`id,name,status` only), (3) campaign insights with `level=campaign` + explicit `time_range`. Joined by `campaign_id`. Also added try/catch to meta route so errors return JSON not 500 HTML.
+
+**Files:** `services/meta/ads.ts`, `app/api/analytics/meta/route.ts`
+
+---
+
+### Issue 47: Google Ads page showing dummy data — no real data until dev token approved
+**Problem:** Google Ads Basic Access still pending. Page showed dummy data with no path to real data.
+
+**Fix:** Added `getAdsReportFromGA4()` in `services/google/ads.ts`. When native Ads API fails or no customer ID is set, the route falls back to pulling Google Ads data from GA4 via the linked account (customer ID 429-308-8995 linked to abilityschoolnj GA4 property). Uses GA4 `advertiserAdCost`, `advertiserAdClicks`, `advertiserAdImpressions`, `conversions`, `purchaseRevenue` with `sessionCampaignName` dimension. Page shows a blue info banner when source is GA4.
+
+**Files:** `services/google/ads.ts`, `app/api/analytics/ads/route.ts`, `app/(dashboard)/google-ads/page.tsx`
+
+---
+
+### Issue 48: Null crashes on Google Ads page after GA4 fallback
+**Problem:** GA4 returns null for metrics with no data (e.g. ROAS when no purchase revenue). `ads-overview-cards.tsx` and `ads-campaigns-table.tsx` called `.toFixed()` / `.toLocaleString()` on null → crash.
+
+**Fix:** Added `?? 0` null guards to all metric accessors in both components.
+
+**Files:** `components/analytics/ads-overview-cards.tsx`, `components/analytics/ads-campaigns-table.tsx`
+
+---
+
+### Issue 49: Report generation had 3 silent data bugs
+**Problems:**
+1. `ads.overview.cost` — field doesn't exist (`AdsOverview` uses `spend`). Google Ads spend was always $0 in reports.
+2. `ads.daily.cost` — same wrong field. Daily Google Ads spend was 0.
+3. `gsc.overview.totalClicks` — field doesn't exist (it's `clicks`). GSC MoM comparison always showed 0.
+
+**Fix:** Corrected all three field names in `services/reports/generate.ts`.
+
+---
+
+### Issue 50: DOCX report missing most platform data
+**Problem:** Generated DOCX only had a flat channel summary table. Missing: per-platform sections, campaign tables, Meta reach/frequency/video, TikTok video metrics, LinkedIn engagement, GA4 top pages, GSC keywords, WordPress, ROAS column. AI narrative always included even when not generated.
+
+**Fix:** Full rewrite of `app/api/reports/[id]/download/route.ts`:
+- Cover page with report title + date range
+- Executive summary with 6 KPIs + MoM comparison + channel summary (now includes ROAS)
+- Per-platform sections (only rendered if data present): Google Ads, Meta (reach/freq/video), TikTok (video metrics), LinkedIn (engagement)
+- Organic section: GA4 top pages + GSC top keywords
+- WordPress content summary
+- AI Insights section only rendered if `aiNarrative` is non-empty
+
+`services/reports/generate.ts` updated to:
+- Fetch WordPress data and store full platform API responses in `platforms` field on `ReportData`
+- Add WordPress to the platform fetch list
+
+**Files:** `app/api/reports/[id]/download/route.ts`, `services/reports/generate.ts`
+
+---
+
 ## Pending / Open Items (as of 2026-05-05)
 
 - **Google Ads API Basic Access:** Awaiting approval. Submitted with MCC under `mohit@growthdrivendigital.com`. Once approved: update `GOOGLE_ADS_DEVELOPER_TOKEN` in `.env`, reconnect Google OAuth to get fresh token with `adwords` scope, clear `analytics_cache` for `google-ads`.
