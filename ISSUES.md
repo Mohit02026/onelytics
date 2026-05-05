@@ -616,6 +616,23 @@ On next page load the route fetched fresh data with the correct `metricAggregati
 
 ---
 
+## Session: 2026-05-05 (continued) — Dashboard Zero Bug Analysis
+
+### Issue 51: Dashboard shows $0 for all ad spend despite individual pages showing real data
+**Problem:** Main dashboard (`/`) shows $0 total ad spend. Meta individual page shows $1.5k. Google Ads individual page shows real data via GA4 fallback.
+
+**Root Cause:** The unified route (`app/api/analytics/unified/route.ts`) calls service functions directly (`getMetaReportFromApi`, `getAdsReportFromApi`) instead of going through the individual analytics API routes. This means:
+1. No caching — individual pages read from 6-hour DB cache, unified hits the API fresh every load
+2. No fallback logic — GA4 fallback added to `/api/analytics/ads` is bypassed
+3. Silent failures — if any direct API call fails, `Promise.allSettled` catches it, returns null, shows $0
+4. TikTok and LinkedIn not fetched at all in the unified route
+
+**Fix needed:** Rewrite unified route to call internal `/api/analytics/*` routes with cookie forwarding (same pattern as `services/reports/generate.ts`). This gets caching + fallback logic for free and ensures dashboard is always consistent with individual pages.
+
+**Files:** `app/api/analytics/unified/route.ts`
+
+---
+
 ## Pending / Open Items (as of 2026-05-05)
 
 - **Google Ads API Basic Access:** Awaiting approval. Submitted with MCC under `mohit@growthdrivendigital.com`. Once approved: update `GOOGLE_ADS_DEVELOPER_TOKEN` in `.env`, reconnect Google OAuth to get fresh token with `adwords` scope, clear `analytics_cache` for `google-ads`.
