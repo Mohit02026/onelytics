@@ -34,6 +34,9 @@ export function LinkedInCampaignsTable({ campaigns }: Props) {
             <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Clicks</th>
             <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">CTR</th>
             <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Conversions</th>
+            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Likes</th>
+            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Comments</th>
+            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Shares</th>
           </tr>
         </thead>
         <tbody>
@@ -46,6 +49,9 @@ export function LinkedInCampaignsTable({ campaigns }: Props) {
               <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.clicks.toLocaleString()}</td>
               <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.ctr.toFixed(2)}%</td>
               <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.conversions.toLocaleString()}</td>
+              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.likes ?? 0).toLocaleString()}</td>
+              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.comments ?? 0).toLocaleString()}</td>
+              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.shares ?? 0).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>

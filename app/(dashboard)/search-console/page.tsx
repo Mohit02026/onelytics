@@ -5,6 +5,7 @@ import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-r
 import { GscOverviewCards } from '@/components/analytics/gsc-overview-cards'
 import { GscClicksChart } from '@/components/analytics/gsc-clicks-chart'
 import { GscKeywordsTable } from '@/components/analytics/gsc-keywords-table'
+import { GscTopPagesTable, GscDeviceCountryBreakdown } from '@/components/analytics/gsc-breakdowns'
 import { Button } from '@/components/ui/button'
 import { Search, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -90,6 +91,13 @@ export default function SearchConsolePage() {
         <div className="space-y-6">
           <GscClicksChart data={report.daily} />
           <GscKeywordsTable keywords={report.keywords} />
+          {report.topPages?.length > 0 && <GscTopPagesTable pages={report.topPages} />}
+          {(report.devices?.length > 0 || report.countries?.length > 0) && (
+            <GscDeviceCountryBreakdown
+              devices={report.devices ?? []}
+              countries={report.countries ?? []}
+            />
+          )}
         </div>
       )}
     </div>

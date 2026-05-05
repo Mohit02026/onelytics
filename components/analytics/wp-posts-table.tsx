@@ -20,6 +20,12 @@ function statusBadge(status: WpPost['status']) {
         Draft
       </Badge>
     )
+  if (status === 'future')
+    return (
+      <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 border-0 text-[10px]">
+        Scheduled
+      </Badge>
+    )
   return (
     <Badge variant="outline" className="text-gray-500 text-[10px]">
       Private

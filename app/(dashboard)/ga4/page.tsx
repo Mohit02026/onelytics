@@ -5,6 +5,7 @@ import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-r
 import { Ga4OverviewCards } from '@/components/analytics/overview-cards'
 import { SessionsChart } from '@/components/analytics/sessions-chart'
 import { TrafficSourcesChart } from '@/components/analytics/traffic-sources-chart'
+import { Ga4TopPagesTable, Ga4DeviceCountryBreakdown } from '@/components/analytics/ga4-breakdowns'
 import { Button } from '@/components/ui/button'
 import { BarChart3, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -122,6 +123,19 @@ export default function Ga4Page() {
             <TrafficSourcesChart data={report.trafficSources} />
           </div>
         </div>
+      )}
+
+      {/* Top pages */}
+      {report?.topPages && report.topPages.length > 0 && (
+        <Ga4TopPagesTable pages={report.topPages} />
+      )}
+
+      {/* Device + country breakdowns */}
+      {report && (report.deviceBreakdown?.length > 0 || report.countryBreakdown?.length > 0) && (
+        <Ga4DeviceCountryBreakdown
+          devices={report.deviceBreakdown ?? []}
+          countries={report.countryBreakdown ?? []}
+        />
       )}
     </div>
   )

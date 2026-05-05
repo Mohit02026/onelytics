@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-range-picker'
 import { WpOverviewCards } from '@/components/analytics/wp-overview-cards'
 import { WpPostsTable } from '@/components/analytics/wp-posts-table'
+import { WpCategoriesTable } from '@/components/analytics/wp-categories-table'
 import { Button } from '@/components/ui/button'
 import { Globe, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -104,7 +105,12 @@ export default function WordPressPage() {
       </div>
 
       {report && <WpOverviewCards data={report.overview} />}
-      {report && <WpPostsTable posts={report.recentPosts} />}
+      {report && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <WpPostsTable posts={report.recentPosts} />
+          {report.categories?.length > 0 && <WpCategoriesTable categories={report.categories} />}
+        </div>
+      )}
     </div>
   )
 }

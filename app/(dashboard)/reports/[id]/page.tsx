@@ -9,7 +9,7 @@ import { ReportChannelTable } from '@/components/analytics/report-channel-table'
 import { ReportSpendBreakdown } from '@/components/analytics/report-spend-breakdown'
 import { ReportMoMComparison } from '@/components/analytics/report-mom-comparison'
 import type { ReportData } from '@/services/reports/generate'
-import { Loader2, ArrowLeft, Calendar } from 'lucide-react'
+import { Loader2, ArrowLeft, Calendar, Download } from 'lucide-react'
 
 interface StoredReport {
   id: string
@@ -99,6 +99,12 @@ export default function ReportDetailPage() {
             Generated {new Date(report.createdAt).toLocaleDateString()}
           </p>
         </div>
+        <a href={`/api/reports/${report.id}/download`} download>
+          <Button variant="outline" className="flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            Download .docx
+          </Button>
+        </a>
       </div>
 
       {/* Executive Summary */}

@@ -159,10 +159,12 @@ function ConnectPageInner() {
   const [wpLoading, setWpLoading] = useState(false)
   const [wpError, setWpError] = useState('')
 
-  // Meta / TikTok / LinkedIn (manual IDs, shown via banner after OAuth)
+  // Meta ad account
   const [metaAdInput, setMetaAdInput] = useState('')
   const [metaAdLoading, setMetaAdLoading] = useState(false)
   const [metaAdError, setMetaAdError] = useState('')
+  const [metaAdAccounts, setMetaAdAccounts] = useState<{ id: string; name: string; active: boolean }[]>([])
+  const [metaAdAccountsLoading, setMetaAdAccountsLoading] = useState(false)
 
   const [tiktokAdInput, setTiktokAdInput] = useState('')
   const [tiktokAdLoading, setTiktokAdLoading] = useState(false)
@@ -181,7 +183,21 @@ function ConnectPageInner() {
     }
   }, [])
 
-  useEffect(() => { fetchStatus() }, [fetchStatus])
+  useEffect(() => {
+    fetchStatus().then(() => {
+      // Auto-fetch Meta ad accounts if Meta is connected but no ad account selected yet
+    })
+  }, [fetchStatus])
+
+  useEffect(() => {
+    if (status.meta && !status.metaAdAccountId && metaAdAccounts.length === 0) {
+      setMetaAdAccountsLoading(true)
+      fetch('/api/integrations/meta/ad-account')
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setMetaAdAccounts(d) })
+        .finally(() => setMetaAdAccountsLoading(false))
+    }
+  }, [status.meta, status.metaAdAccountId, metaAdAccounts.length])
 
   const openGa4Picker = useCallback(async () => {
     setActivePicker('ga4')
@@ -248,6 +264,11 @@ function ConnectPageInner() {
     } else if (metaParam === 'connected') {
       setToast({ type: 'success', message: 'Meta account connected.' })
       fetchStatus()
+      setMetaAdAccountsLoading(true)
+      fetch('/api/integrations/meta/ad-account')
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setMetaAdAccounts(d) })
+        .finally(() => setMetaAdAccountsLoading(false))
     } else if (tiktokParam === 'connected') {
       setToast({ type: 'success', message: 'TikTok account connected.' })
       fetchStatus()
@@ -645,21 +666,39 @@ function ConnectPageInner() {
         </div>
       )}
 
-      {/* Meta ad account ID prompt */}
+      {/* Meta ad account picker */}
       {needsMetaAdAccount && (
         <div className="mb-6 p-4 border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
-          <p className="text-sm font-medium text-pink-800 dark:text-pink-300 mb-1">One more step — enter your Meta Ad Account ID</p>
+          <p className="text-sm font-medium text-pink-800 dark:text-pink-300 mb-1">One more step — select your Meta Ad Account</p>
           <p className="text-xs text-pink-700 dark:text-pink-400 mb-3">
-            Find it in Meta Business Manager → Ad Accounts. Format:{' '}
-            <code className="font-mono bg-pink-100 dark:bg-pink-900/50 px-1 rounded">act_XXXXXXXXXX</code>
+            Choose the ad account you want to pull data from.
           </p>
           <div className="flex items-start gap-2">
             <div className="flex-1">
-              <input type="text" value={metaAdInput} onChange={(e) => setMetaAdInput(e.target.value)} placeholder="act_1234567890"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              {metaAdAccountsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-pink-700 dark:text-pink-400">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Fetching your ad accounts…
+                </div>
+              ) : metaAdAccounts.length > 0 ? (
+                <select
+                  value={metaAdInput}
+                  onChange={(e) => setMetaAdInput(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select an ad account…</option>
+                  {metaAdAccounts.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.id}){!a.active ? ' — inactive' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input type="text" value={metaAdInput} onChange={(e) => setMetaAdInput(e.target.value)} placeholder="act_1234567890"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              )}
               {metaAdError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{metaAdError}</p>}
             </div>
-            <Button onClick={handleSaveMetaAdAccount} disabled={metaAdLoading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
+            <Button onClick={handleSaveMetaAdAccount} disabled={metaAdLoading || !metaAdInput} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
               {metaAdLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
             </Button>
           </div>

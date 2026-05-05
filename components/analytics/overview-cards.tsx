@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, MousePointerClick, Timer, TrendingDown } from 'lucide-react'
+import { Users, MousePointerClick, Timer, TrendingDown, Eye, UserPlus } from 'lucide-react'
 import type { Ga4Overview } from '@/services/google/ga4'
 
 function formatDuration(seconds: number): string {
@@ -8,10 +8,11 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString()
+function formatNumber(n: number | null | undefined): string {
+  const v = n ?? 0
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`
+  return v.toLocaleString()
 }
 
 interface Props {
@@ -35,6 +36,20 @@ export function Ga4OverviewCards({ data }: Props) {
       bg: 'bg-purple-50 dark:bg-purple-950',
     },
     {
+      label: 'New Users',
+      value: formatNumber(data.newUsers),
+      icon: UserPlus,
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-950',
+    },
+    {
+      label: 'Pageviews',
+      value: formatNumber(data.pageviews),
+      icon: Eye,
+      color: 'text-indigo-600 dark:text-indigo-400',
+      bg: 'bg-indigo-50 dark:bg-indigo-950',
+    },
+    {
       label: 'Bounce Rate',
       value: `${data.bounceRate}%`,
       icon: TrendingDown,
@@ -51,7 +66,7 @@ export function Ga4OverviewCards({ data }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">

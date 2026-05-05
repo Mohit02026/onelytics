@@ -1,6 +1,7 @@
 const SCOPES = [
   'https://www.googleapis.com/auth/analytics.readonly',
   'https://www.googleapis.com/auth/webmasters.readonly',
+  'https://www.googleapis.com/auth/adwords',
 ].join(' ')
 
 export function buildGoogleOAuthUrl(state: string): string {

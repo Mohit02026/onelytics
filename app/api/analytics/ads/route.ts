@@ -68,8 +68,19 @@ export async function GET(req: Request) {
     return Response.json(cached.data)
   }
 
-  const accessToken = await resolveAccessToken(workspaceId, account)
-  const report = await getAdsReport(accessToken, customerId, startDate, endDate)
+  let accessToken: string
+  try {
+    accessToken = await resolveAccessToken(workspaceId, account)
+  } catch (e) {
+    return Response.json({ error: `Token error: ${e instanceof Error ? e.message : e}` }, { status: 500 })
+  }
+
+  let report
+  try {
+    report = await getAdsReport(accessToken, customerId, startDate, endDate)
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : 'Google Ads API error' }, { status: 502 })
+  }
 
   await prisma.analyticsCache.upsert({
     where: {

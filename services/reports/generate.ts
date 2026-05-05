@@ -57,11 +57,11 @@ function pctDelta(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 1000) / 10
 }
 
-async function fetchWithTimeout(url: string, ms = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, reqHeaders: Record<string, string> = {}, ms = 8000): Promise<Response> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), ms)
   try {
-    return await fetch(url, { signal: controller.signal })
+    return await fetch(url, { headers: reqHeaders, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
   }
@@ -85,14 +85,14 @@ export async function generateReport(
   const [currentResults, prevResults] = await Promise.all([
     Promise.allSettled(
       platforms.map((p) =>
-        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(startDate, endDate)}`)
+        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(startDate, endDate)}`, headers)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null)
       )
     ),
     Promise.allSettled(
       platforms.map((p) =>
-        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(prev.startDate, prev.endDate)}`)
+        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(prev.startDate, prev.endDate)}`, headers)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null)
       )
@@ -102,7 +102,7 @@ export async function generateReport(
   const [ga4, ads, meta, tiktok, linkedin, gsc] = currentResults.map((r) =>
     r.status === 'fulfilled' ? r.value : null
   )
-  const [pGa4, pAds, pMeta, pTiktok, pLinkedin] = prevResults.map((r) =>
+  const [pGa4, pAds, pMeta, pTiktok, pLinkedin, pGsc] = prevResults.map((r) =>
     r.status === 'fulfilled' ? r.value : null
   )
 
@@ -190,7 +190,7 @@ export async function generateReport(
   const prevOrganicClicks = pGa4?.overview?.sessions ?? 0
   const organicClicks = ga4?.overview?.sessions ?? 0
   const organicKeywordClicks = gsc?.overview?.totalClicks ?? 0
-  const prevOrganicKeywordClicks = 0 // no prev gsc data easily available
+  const prevOrganicKeywordClicks = pGsc?.overview?.totalClicks ?? 0
 
   const momComparisons: MoMMetric[] = [
     {

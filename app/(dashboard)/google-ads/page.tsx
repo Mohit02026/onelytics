@@ -18,6 +18,7 @@ export default function GoogleAdsPage() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [report, setReport] = useState<AdsReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string>('')
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -26,10 +27,15 @@ export default function GoogleAdsPage() {
         `/api/analytics/ads?startDate=${range.startDate}&endDate=${range.endDate}`
       )
       if (res.status === 404) { setStatus('not-connected'); return }
-      if (!res.ok) throw new Error('Failed to fetch')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setErrorMsg(data.error ?? `HTTP ${res.status}`)
+        throw new Error(data.error ?? 'Failed to fetch')
+      }
       setReport(await res.json())
       setStatus('loaded')
-    } catch {
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Unknown error')
       setStatus('error')
     } finally {
       setRefreshing(false)
@@ -63,7 +69,7 @@ export default function GoogleAdsPage() {
     return (
       <div className="flex items-center gap-3 text-red-600 dark:text-red-400 p-6">
         <AlertCircle className="w-5 h-5" />
-        <span>Failed to load Ads data.</span>
+        <span>Failed to load Ads data{errorMsg ? `: ${errorMsg}` : ''}.</span>
         <Button variant="outline" size="sm" onClick={() => fetchReport(dateRange)}>Retry</Button>
       </div>
     )

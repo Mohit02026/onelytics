@@ -2,6 +2,58 @@
 
 ---
 
+## Session: 2026-04-30 — Google Ads Real API Setup
+
+### Issue 1: Google Ads API version outdated (404 from Google)
+**Problem:** Google Ads API calls returned a generic HTML 404 page. Code was using v17, then v19 after an attempted fix — both were either sunset or non-existent.
+
+**Fix:** Updated to v24 (current stable version as of April 2026) in `services/google/ads.ts`.
+
+---
+
+### Issue 2: Missing GOOGLE_ADS_DEVELOPER_TOKEN in .env
+**Problem:** Google Ads API requires a developer token on every request. It was not in `.env` so every real API call failed silently (the service threw before returning a response, causing a 500 HTML page, not a JSON error).
+
+**Fix:** Added `GOOGLE_ADS_DEVELOPER_TOKEN` to `.env`. Developer token obtained from Google Ads Manager Account (Kadyan Org, 613-181-7607) at Admin → API Center.
+
+**Note:** Token is currently Test Account Access only — cannot access real production accounts. Basic Access application submitted.
+
+---
+
+### Issue 3: API route swallowing errors as HTML 500
+**Problem:** When the Google Ads service threw an error (bad API version, missing token, etc.), the Next.js route had no try/catch, so Next.js returned a 500 HTML page. The frontend tried to parse it as JSON, failed, and showed a generic "Failed to fetch" error with no useful info.
+
+**Fix:** Wrapped token resolution and API call in separate try/catch blocks in `/api/analytics/ads/route.ts`. Each returns a proper JSON error response with the actual error message.
+
+---
+
+### Issue 4: Missing adwords OAuth scope (403 PERMISSION_DENIED)
+**Problem:** After fixing the API version and adding the developer token, Google returned `ACCESS_TOKEN_SCOPE_INSUFFICIENT`. The OAuth flow was not requesting the adwords scope — only analytics and webmasters scopes were included.
+
+**Fix:** Added `https://www.googleapis.com/auth/adwords` to the SCOPES array in `services/google/auth.ts`. User must disconnect and reconnect Google to get a new token with this scope.
+
+---
+
+### Issue 5: Google Ads API Basic Access requires Manager (MCC) account
+**Problem:** Developer token for Google Ads API is only available in Manager (MCC) accounts, not standard advertiser accounts. The user's main account (429-308-8995, Ability School) is a standard account with no API Center.
+
+**Tried:**
+- Creating a new manager account on the same Google account — hit account creation limit (existing stuck account 670-935-4068 in "setup in progress" state)
+- Clicking the stuck manager account — redirected to creation page showing "limit reached"
+
+**Fix:** Created a new manager account (Kadyan Org, 613-181-7607) under a different Google account (19bcs1615@gmail.com). Got developer token from Admin → API Center.
+
+---
+
+### Issue 6: Test developer token cannot access production accounts (403 DEVELOPER_TOKEN_NOT_APPROVED)
+**Problem:** Newly created manager accounts get a Test Account Access token by default. This token can only be used with Google Ads test accounts, not real production accounts like 429-308-8995.
+
+**Status:** Applied for Basic Access at Google Ads API Center. Submitted design document (Onelytics_GoogleAds_API_Design_Document.docx). Awaiting approval (1-3 business days).
+
+**Next step after approval:** Update GOOGLE_ADS_DEVELOPER_TOKEN in .env with the approved token. Reconnect Google on /connect page to get a fresh OAuth token with adwords scope. Clear analytics_cache for google-ads provider.
+
+---
+
 ## Session: 2026-04-28 — Phase 2 (Dummy Data)
 
 ### Issue 1: DATABASE_URL localhost not resolving on Windows + Docker
@@ -374,3 +426,143 @@ On next page load the route fetched fresh data with the correct `metricAggregati
 **Root Cause:** The unified route predated the metadata migration and wasn't updated when `propertyId` usage was split.
 
 **Fix:** Updated `app/api/analytics/unified/route.ts` to read `(googleAccount.metadata as Record<string,string>)?.googleAdsCustomerId ?? ''`. The Ads fetch is now correctly skipped when no customer ID is saved.
+
+---
+
+## Session: 2026-05-05 — Report Fix + DOCX + Meta OAuth + Data Expansion
+
+### Issue 37: Report generation returned all zeros for every platform
+**Problem:** Generated reports showed 0 for all metrics on every channel.
+
+**Root Cause:** `fetchWithTimeout()` in `services/reports/generate.ts` did not accept a `reqHeaders` parameter. The session `Cookie` header was never forwarded to internal analytics API calls. Every request was unauthenticated → 401 → fallback to 0.
+
+**Fix:** Added `reqHeaders: Record<string, string> = {}` parameter to `fetchWithTimeout`. All 12 platform fetch calls now pass `headers` (session cookie). Also fixed `pGsc` destructuring from `prevResults` — it was hardcoded to 0 instead of reading from `pGsc?.overview?.totalClicks ?? 0`.
+
+---
+
+### Issue 38: DOCX download — Buffer type incompatible with BodyInit
+**Problem:** `Packer.toBuffer(doc)` returns `Buffer<ArrayBufferLike>` which is not assignable to `BodyInit` in TypeScript when passed to `new Response(buffer, ...)`.
+
+**Fix:** Wrap with `new Uint8Array(await Packer.toBuffer(doc))`.
+
+**Files:** `app/api/reports/[id]/download/route.ts` (new)
+
+---
+
+### Issue 39: Meta OAuth "invalid app id" error
+**Problem:** Clicking "Connect Meta" opened OAuth flow but immediately returned "invalid app id" error from Facebook.
+
+**Root Cause:** `META_APP_ID` and `META_APP_SECRET` were empty strings in `.env`. No Meta Developer App existed.
+
+**Fix:** Created Meta Developer App (App ID: 952707834161525), added App ID and Secret to `.env`. App type: Business. Required permissions: `ads_read`, `business_management`.
+
+---
+
+### Issue 40: Meta OAuth requires HTTPS — localhost blocked
+**Problem:** Meta OAuth does not allow `http://localhost` as a redirect URI. The app enforces HTTPS for all redirect URIs.
+
+**Fix:** Set up ngrok HTTPS tunnel with `ngrok http 127.0.0.1:3000` (must use `127.0.0.1` not `localhost` — Windows IPv6 vs IPv4 issue). Added `META_REDIRECT_URI` env var pointing to the ngrok URL. `NEXTAUTH_URL` stays as `http://127.0.0.1:3000` for all other routes.
+
+---
+
+### Issue 41: Meta OAuth callback 302 but lands on wrong domain after redirect
+**Problem:** Callback route received code, exchanged token successfully, but the browser landed on the ngrok domain (`https://ngrok-url/connect?meta=connected`) instead of `localhost:3000`. On ngrok domain, session cookies don't exist so the page showed as logged-out.
+
+**Root Cause:** Session cookies are set by `127.0.0.1:3000`. When ngrok forwards the callback, the final redirect goes to `ngrok-url/connect` — which has no session cookie. The OAuth flow completed but the UI showed as unauthenticated.
+
+**Fix:** Replaced cookie-based OAuth state storage with Redis. State key `meta_oauth_state:{state}` stores `{workspaceId, userId}` with 10-minute TTL. Callback reads workspace from Redis (no session needed), completes token storage, then redirects to the correct app origin using `META_REDIRECT_URI` origin. This is production-ready — works across any domain.
+
+**Files modified:**
+- `app/api/integrations/meta/connect/route.ts` — stores state in Redis, no cookie
+- `app/api/integrations/meta/callback/route.ts` — reads state from Redis, removed `auth()` dependency
+
+---
+
+### Issue 42: Meta campaigns table showing empty / no data
+**Problem:** Meta campaigns table on the Meta Ads page showed no rows even after OAuth was connected and ad account was set.
+
+**Root Cause:** `services/meta/ads.ts` and `app/api/integrations/meta/ad-account/route.ts` used Graph API v19.0, which was sunset. All campaign calls returned empty `data: []`.
+
+**Fix:** Updated to Graph API v22.0 (current stable) across all Meta files. Also cleared `analytics_cache` for `provider = 'meta'` rows in the database.
+
+---
+
+### Issue 43: Meta ad account ID required manual text entry
+**Problem:** After Meta OAuth, user was asked to type their ad account ID manually in format `act_XXXXXXXXX`. No one knows this by heart.
+
+**Fix:** Added `GET /api/integrations/meta/ad-account` handler that calls `/me/adaccounts?fields=id,name,account_status` on the Meta Graph API. Connect page auto-fetches the user's ad accounts after Meta connects and shows a dropdown with account name + ID. Falls back to text input if no accounts found.
+
+---
+
+### Issue 44: Multiple `TypeError: Cannot read properties of null` on analytics pages
+**Problem:** Several analytics components crashed when API returned null values for metrics (e.g. `null.toLocaleString()`).
+
+**Fix:** Updated `fmt()` helper functions across 5 components to handle `null | undefined` with `const v = n ?? 0` pattern:
+- `components/analytics/unified-stats.tsx`
+- `components/analytics/integration-quick-links.tsx`
+- `components/analytics/gsc-overview-cards.tsx`
+- `components/analytics/meta-campaigns-table.tsx`
+- `components/analytics/meta-overview-cards.tsx`
+
+---
+
+### Issue 45: Platform data fetching incomplete — only basic metrics pulled
+**Problem:** All platform services (GA4, GSC, TikTok, LinkedIn, WordPress) were only fetching basic metrics. Significant available data was being left on the table despite having OAuth connections.
+
+**Fix (this session):** Expanded all 5 platform services:
+
+**GA4** (`services/google/ga4.ts`):
+- Added `pageviews`, `newUsers` to overview
+- Added `pageviews` to daily rows
+- New API calls: top pages (pagePath + screenPageViews), device breakdown (deviceCategory), country breakdown (country)
+- New interfaces: `Ga4TopPage`, `Ga4DeviceRow`, `Ga4CountryRow`
+- New fields in `Ga4Report`: `topPages[]`, `deviceBreakdown[]`, `countryBreakdown[]`
+
+**GSC** (`services/google/gsc.ts`):
+- New API calls: top pages (page dimension), device split, country breakdown
+- New interfaces: `GscPage`, `GscDevice`, `GscCountry`
+- New fields in `GscReport`: `topPages[]`, `devices[]`, `countries[]`
+
+**TikTok** (`services/tiktok/ads.ts`):
+- Added `reach`, `frequency`, `roas`, `videoViews`, `videoViewRate` to overview + campaigns + daily
+- API metrics expanded to include: `reach`, `real_time_result`, `video_play_actions`
+
+**LinkedIn** (`services/linkedin/ads.ts`):
+- Added `likes`, `comments`, `shares`, `follows`, `engagementRate` to overview + campaigns
+- New API calls: job function breakdown (MEMBER_JOB_FUNCTION pivot), seniority breakdown (MEMBER_SENIORITY pivot)
+- New interfaces: `LinkedInDemographic`
+- New fields in `LinkedInReport`: `jobFunctionBreakdown[]`, `seniorityBreakdown[]`
+
+**WordPress** (`services/wordpress/index.ts`):
+- Added `scheduled`, `totalPages`, `pendingComments`, `totalCategories` to overview
+- Added `categories[]` array with post counts per category
+- New interface: `WpCategory`
+- `WpPost.status` now includes `'future'` for scheduled posts
+
+**UI components updated:**
+- `overview-cards.tsx` — 6 cards (added Pageviews, New Users)
+- `tiktok-overview-cards.tsx` — 7 cards (added Reach, Frequency, Video Views, ROAS)
+- `linkedin-overview-cards.tsx` — 7 cards (added Engagement Rate, Likes, Shares)
+- `wp-overview-cards.tsx` — 6 cards (Scheduled, Pages, Comments with pending badge)
+- `tiktok-campaigns-table.tsx` — added Reach, Video Views, ROAS columns
+- `linkedin-campaigns-table.tsx` — added Likes, Comments, Shares columns
+- `wp-posts-table.tsx` — added 'Scheduled' badge for future status
+
+**New UI components created:**
+- `components/analytics/ga4-breakdowns.tsx` — Top Pages table + Device/Country bars
+- `components/analytics/gsc-breakdowns.tsx` — Top Pages table + Device/Country bars
+- `components/analytics/linkedin-demographics.tsx` — Job Function + Seniority bar charts
+- `components/analytics/wp-categories-table.tsx` — Categories with post count bars
+
+**Pages updated:** GA4, Search Console, LinkedIn Ads, WordPress pages now render all new sections.
+
+---
+
+## Pending / Open Items (as of 2026-05-05)
+
+- **Google Ads API Basic Access:** Awaiting approval. Submitted with MCC under `mohit@growthdrivendigital.com`. Once approved: update `GOOGLE_ADS_DEVELOPER_TOKEN` in `.env`, reconnect Google OAuth to get fresh token with `adwords` scope, clear `analytics_cache` for `google-ads`.
+- **ngrok tunnel:** Required for Meta OAuth in dev. Must be running with `ngrok http 127.0.0.1:3000`. Tunnel URL must match `META_REDIRECT_URI` in `.env`. Free ngrok URLs change on restart — update `.env` and Meta App redirect URI each time.
+- **Meta token expiry:** No refresh flow implemented. ~60 day expiry. User must re-authenticate via /connect after expiry.
+- **LinkedIn token expiry:** ~60 days, no refresh flow implemented.
+- **Report generation background jobs:** Currently synchronous. For large date ranges or many channels this can be slow (10-30s). Consider BullMQ background job for Phase 10.
+- **Production deployment:** Not yet deployed. Plan: Vercel (frontend) + Neon (Postgres) + Upstash (Redis).

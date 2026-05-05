@@ -1,4 +1,4 @@
-const GRAPH_VERSION = 'v19.0'
+const GRAPH_VERSION = 'v22.0'
 
 export interface MetaOverview {
   spend: number
@@ -6,15 +6,20 @@ export interface MetaOverview {
   impressions: number
   clicks: number
   cpm: number
-  ctr: number // percentage (0–100)
+  ctr: number
+  cpa: number
   conversions: number
+  roas: number
+  frequency: number
+  videoViews: number
 }
 
 export interface MetaDailyRow {
-  date: string // "YYYY-MM-DD"
+  date: string
   spend: number
   reach: number
   impressions: number
+  clicks: number
 }
 
 export interface MetaCampaign {
@@ -27,7 +32,10 @@ export interface MetaCampaign {
   clicks: number
   cpm: number
   ctr: number
+  cpa: number
   conversions: number
+  roas: number
+  videoViews: number
 }
 
 export interface MetaReport {
@@ -46,8 +54,12 @@ type InsightRow = {
   clicks?: string
   cpm?: string
   ctr?: string
+  frequency?: string
   date_start?: string
   actions?: { action_type: string; value: string }[]
+  action_values?: { action_type: string; value: string }[]
+  video_p100_watched_actions?: { action_type: string; value: string }[]
+  purchase_roas?: { action_type: string; value: string }[]
   campaign_id?: string
   campaign_name?: string
 }
@@ -59,20 +71,33 @@ function parseInsightRow(row: InsightRow) {
   const clicks = parseInt(row.clicks ?? '0', 10)
   const cpm = parseFloat(row.cpm ?? '0')
   const ctr = parseFloat(row.ctr ?? '0')
+  const frequency = parseFloat(row.frequency ?? '0')
+
   const conversions = (row.actions ?? [])
     .filter((a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
     .reduce((s, a) => s + parseInt(a.value, 10), 0)
-  return { spend, reach, impressions, clicks, cpm, ctr, conversions }
+
+  const purchaseValue = (row.action_values ?? [])
+    .filter((a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
+    .reduce((s, a) => s + parseFloat(a.value), 0)
+
+  const videoViews = (row.video_p100_watched_actions ?? [])
+    .reduce((s, a) => s + parseInt(a.value, 10), 0)
+
+  const roas = row.purchase_roas?.[0] ? parseFloat(row.purchase_roas[0].value) : (spend > 0 && purchaseValue > 0 ? purchaseValue / spend : 0)
+  const cpa = conversions > 0 ? spend / conversions : 0
+
+  return { spend, reach, impressions, clicks, cpm, ctr, frequency, conversions, purchaseValue, videoViews, roas, cpa }
 }
 
 export async function getMetaReportFromApi(
   accessToken: string,
-  adAccountId: string, // format: act_XXXXXXXXXX
+  adAccountId: string,
   startDate: string,
   endDate: string
 ): Promise<MetaReport> {
   const base = `https://graph.facebook.com/${GRAPH_VERSION}`
-  const insightFields = 'spend,reach,impressions,clicks,cpm,ctr,actions'
+  const insightFields = 'spend,reach,impressions,clicks,cpm,ctr,frequency,actions,action_values,purchase_roas,video_p100_watched_actions'
 
   const [dailyRes, campaignRes] = await Promise.all([
     fetch(
@@ -97,36 +122,60 @@ export async function getMetaReportFromApi(
     spend: parseFloat(row.spend ?? '0'),
     reach: parseInt(row.reach ?? '0', 10),
     impressions: parseInt(row.impressions ?? '0', 10),
+    clicks: parseInt(row.clicks ?? '0', 10),
   }))
 
-  const overview = daily.reduce(
-    (acc, d) => ({ ...acc, spend: acc.spend + d.spend, reach: acc.reach + d.reach, impressions: acc.impressions + d.impressions }),
-    { spend: 0, reach: 0, impressions: 0, clicks: 0, cpm: 0, ctr: 0, conversions: 0 }
-  )
-  // aggregate clicks/conversions from daily insight rows
+  const overviewAcc = { spend: 0, reach: 0, impressions: 0, clicks: 0, cpm: 0, ctr: 0, frequency: 0, conversions: 0, videoViews: 0, roas: 0, cpa: 0 }
   for (const row of dailyData.data) {
     const p = parseInsightRow(row)
-    overview.clicks += p.clicks
-    overview.conversions += p.conversions
+    overviewAcc.spend += p.spend
+    overviewAcc.reach += p.reach
+    overviewAcc.impressions += p.impressions
+    overviewAcc.clicks += p.clicks
+    overviewAcc.conversions += p.conversions
+    overviewAcc.videoViews += p.videoViews
   }
-  overview.cpm = overview.impressions > 0 ? (overview.spend / overview.impressions) * 1000 : 0
-  overview.ctr = overview.impressions > 0 ? (overview.clicks / overview.impressions) * 100 : 0
+  overviewAcc.cpm = overviewAcc.impressions > 0 ? (overviewAcc.spend / overviewAcc.impressions) * 1000 : 0
+  overviewAcc.ctr = overviewAcc.impressions > 0 ? (overviewAcc.clicks / overviewAcc.impressions) * 100 : 0
+  overviewAcc.frequency = overviewAcc.reach > 0 ? overviewAcc.impressions / overviewAcc.reach : 0
+  overviewAcc.cpa = overviewAcc.conversions > 0 ? overviewAcc.spend / overviewAcc.conversions : 0
+  // Weighted average ROAS from daily rows
+  const roasRows = dailyData.data.map(parseInsightRow).filter(r => r.roas > 0)
+  overviewAcc.roas = roasRows.length > 0 ? roasRows.reduce((s, r) => s + r.roas, 0) / roasRows.length : 0
 
   const campaigns: MetaCampaign[] = campaignData.data.map((c) => {
     const insightRow = c.insights?.data?.[0] ?? {}
     const p = parseInsightRow(insightRow)
-    return { id: c.id, name: c.name, status: c.status, ...p }
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      spend: Math.round(p.spend * 100) / 100,
+      reach: p.reach,
+      impressions: p.impressions,
+      clicks: p.clicks,
+      cpm: Math.round(p.cpm * 100) / 100,
+      ctr: Math.round(p.ctr * 100) / 100,
+      cpa: Math.round(p.cpa * 100) / 100,
+      conversions: p.conversions,
+      roas: Math.round(p.roas * 100) / 100,
+      videoViews: p.videoViews,
+    }
   })
 
   return {
     overview: {
-      spend: Math.round(overview.spend * 100) / 100,
-      reach: overview.reach,
-      impressions: overview.impressions,
-      clicks: overview.clicks,
-      cpm: Math.round(overview.cpm * 100) / 100,
-      ctr: Math.round(overview.ctr * 100) / 100,
-      conversions: overview.conversions,
+      spend: Math.round(overviewAcc.spend * 100) / 100,
+      reach: overviewAcc.reach,
+      impressions: overviewAcc.impressions,
+      clicks: overviewAcc.clicks,
+      cpm: Math.round(overviewAcc.cpm * 100) / 100,
+      ctr: Math.round(overviewAcc.ctr * 100) / 100,
+      cpa: Math.round(overviewAcc.cpa * 100) / 100,
+      conversions: overviewAcc.conversions,
+      roas: Math.round(overviewAcc.roas * 100) / 100,
+      frequency: Math.round(overviewAcc.frequency * 100) / 100,
+      videoViews: overviewAcc.videoViews,
     },
     daily,
     campaigns,
@@ -145,25 +194,22 @@ export function getMetaReportDummy(startDate: string, endDate: string): MetaRepo
   const start = new Date(startDate)
   const end = new Date(endDate)
   const daily: MetaDailyRow[] = []
-  let totalSpend = 0
-  let totalReach = 0
-  let totalImpressions = 0
+  let totalSpend = 0, totalReach = 0, totalImpressions = 0, totalClicks = 0
 
   for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const seed = d.getTime() / 1_000_000
     const spend = Math.round((55 + seeded(seed) * 95) * 100) / 100
     const reach = Math.floor(1800 + seeded(seed + 1) * 2400)
     const impressions = Math.floor(reach * (1.4 + seeded(seed + 2) * 0.8))
-    daily.push({ date: d.toISOString().split('T')[0], spend, reach, impressions })
-    totalSpend += spend
-    totalReach += reach
-    totalImpressions += impressions
+    const clicks = Math.floor(impressions * (0.018 + seeded(seed + 3) * 0.012))
+    daily.push({ date: d.toISOString().split('T')[0], spend, reach, impressions, clicks })
+    totalSpend += spend; totalReach += reach; totalImpressions += impressions; totalClicks += clicks
   }
 
-  const totalClicks = Math.floor(totalImpressions * 0.022)
   const totalConversions = Math.floor(totalClicks * 0.038)
   const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0
   const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
+  const roas = totalSpend > 0 ? (totalConversions * 85) / totalSpend : 0
 
   return {
     overview: {
@@ -173,7 +219,11 @@ export function getMetaReportDummy(startDate: string, endDate: string): MetaRepo
       clicks: totalClicks,
       cpm: Math.round(cpm * 100) / 100,
       ctr: Math.round(ctr * 100) / 100,
+      cpa: totalConversions > 0 ? Math.round((totalSpend / totalConversions) * 100) / 100 : 0,
       conversions: totalConversions,
+      roas: Math.round(roas * 100) / 100,
+      frequency: Math.round((totalImpressions / totalReach) * 100) / 100,
+      videoViews: Math.floor(totalImpressions * 0.12),
     },
     daily,
     campaigns: [
@@ -181,25 +231,35 @@ export function getMetaReportDummy(startDate: string, endDate: string): MetaRepo
         id: 'c1', name: 'Awareness — Broad Audience', status: 'ACTIVE',
         spend: Math.round(totalSpend * 0.30 * 100) / 100,
         reach: Math.floor(totalReach * 0.38), impressions: Math.floor(totalImpressions * 0.35),
-        clicks: Math.floor(totalClicks * 0.28), cpm: 9.2, ctr: 1.6, conversions: 0,
+        clicks: Math.floor(totalClicks * 0.28), cpm: 9.2, ctr: 1.6, conversions: 0, cpa: 0, roas: 0,
+        videoViews: Math.floor(totalImpressions * 0.35 * 0.15),
       },
       {
         id: 'c2', name: 'Retargeting — Website Visitors', status: 'ACTIVE',
         spend: Math.round(totalSpend * 0.28 * 100) / 100,
         reach: Math.floor(totalReach * 0.22), impressions: Math.floor(totalImpressions * 0.25),
-        clicks: Math.floor(totalClicks * 0.34), cpm: 18.4, ctr: 3.8, conversions: Math.floor(totalConversions * 0.52),
+        clicks: Math.floor(totalClicks * 0.34), cpm: 18.4, ctr: 3.8,
+        conversions: Math.floor(totalConversions * 0.52),
+        cpa: Math.round((totalSpend * 0.28) / Math.max(1, Math.floor(totalConversions * 0.52)) * 100) / 100,
+        roas: 4.2, videoViews: 0,
       },
       {
         id: 'c3', name: 'Conversion — Lookalike 1%', status: 'ACTIVE',
         spend: Math.round(totalSpend * 0.24 * 100) / 100,
         reach: Math.floor(totalReach * 0.25), impressions: Math.floor(totalImpressions * 0.24),
-        clicks: Math.floor(totalClicks * 0.25), cpm: 16.1, ctr: 2.9, conversions: Math.floor(totalConversions * 0.35),
+        clicks: Math.floor(totalClicks * 0.25), cpm: 16.1, ctr: 2.9,
+        conversions: Math.floor(totalConversions * 0.35),
+        cpa: Math.round((totalSpend * 0.24) / Math.max(1, Math.floor(totalConversions * 0.35)) * 100) / 100,
+        roas: 3.8, videoViews: 0,
       },
       {
         id: 'c4', name: 'Lead Gen — Interest Targeting', status: 'ACTIVE',
         spend: Math.round(totalSpend * 0.18 * 100) / 100,
         reach: Math.floor(totalReach * 0.15), impressions: Math.floor(totalImpressions * 0.16),
-        clicks: Math.floor(totalClicks * 0.13), cpm: 17.8, ctr: 2.2, conversions: Math.floor(totalConversions * 0.13),
+        clicks: Math.floor(totalClicks * 0.13), cpm: 17.8, ctr: 2.2,
+        conversions: Math.floor(totalConversions * 0.13),
+        cpa: Math.round((totalSpend * 0.18) / Math.max(1, Math.floor(totalConversions * 0.13)) * 100) / 100,
+        roas: 2.9, videoViews: 0,
       },
     ],
     dateRange: { startDate, endDate },

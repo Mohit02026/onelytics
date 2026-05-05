@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { LinkedInOverviewCards } from '@/components/analytics/linkedin-overview-cards'
 import { LinkedInSpendChart } from '@/components/analytics/linkedin-spend-chart'
 import { LinkedInCampaignsTable } from '@/components/analytics/linkedin-campaigns-table'
+import { LinkedInDemographics } from '@/components/analytics/linkedin-demographics'
 import { DateRangePicker } from '@/components/analytics/date-range-picker'
 import type { LinkedInReport } from '@/services/linkedin/ads'
 import { Loader2, Briefcase } from 'lucide-react'
@@ -106,6 +107,16 @@ export default function LinkedInAdsPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Demographic breakdowns */}
+      {!loading && report && (
+        report.jobFunctionBreakdown?.length > 0 || report.seniorityBreakdown?.length > 0
+      ) && (
+        <LinkedInDemographics
+          jobFunctions={report?.jobFunctionBreakdown ?? []}
+          seniority={report?.seniorityBreakdown ?? []}
+        />
+      )}
 
       {loading && (
         <div className="flex items-center gap-2 text-gray-400 text-sm">

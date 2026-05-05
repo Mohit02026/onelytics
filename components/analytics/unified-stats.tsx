@@ -2,10 +2,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DollarSign, MousePointerClick, Eye, Search } from 'lucide-react'
 import type { UnifiedReport } from '@/app/api/analytics/unified/route'
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString('en-US')
+function fmt(n: number | null | undefined) {
+  const v = n ?? 0
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`
+  return v.toLocaleString('en-US')
 }
 
 interface Props {

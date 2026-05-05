@@ -40,7 +40,7 @@ export async function getAdsReportFromApi(
   endDate: string
 ): Promise<AdsReport> {
   const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN!
-  const baseUrl = `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`
+  const baseUrl = `https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     'developer-token': devToken,
@@ -80,8 +80,8 @@ export async function getAdsReportFromApi(
   ])
 
   if (!dailyRes.ok) {
-    const err = await dailyRes.json().catch(() => ({}))
-    throw new Error(`Google Ads API error: ${err.error?.message ?? dailyRes.status}`)
+    const errText = await dailyRes.text().catch(() => '')
+    throw new Error(`Google Ads API error ${dailyRes.status}: ${errText.slice(0, 500)}`)
   }
 
   const dailyStream: { results: { segments: { date: string }; metrics: { cost_micros: string; clicks: string; impressions: string } }[] }[] = await dailyRes.json()
