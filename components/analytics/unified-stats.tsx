@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { DollarSign, MousePointerClick, Eye, Search } from 'lucide-react'
+import { DollarSign, MousePointerClick, Eye, Search, Target } from 'lucide-react'
 import type { UnifiedReport } from '@/app/api/analytics/unified/route'
 
 function fmt(n: number | null | undefined) {
@@ -7,6 +7,15 @@ function fmt(n: number | null | undefined) {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`
   return v.toLocaleString('en-US')
+}
+
+function buildSpendSub(data: UnifiedReport): string | undefined {
+  const parts: string[] = []
+  if (data.googleAdSpend > 0) parts.push(`Google $${fmt(data.googleAdSpend)}`)
+  if (data.metaAdSpend > 0) parts.push(`Meta $${fmt(data.metaAdSpend)}`)
+  if (data.tiktokAdSpend > 0) parts.push(`TikTok $${fmt(data.tiktokAdSpend)}`)
+  if (data.linkedinAdSpend > 0) parts.push(`LinkedIn $${fmt(data.linkedinAdSpend)}`)
+  return parts.length > 1 ? parts.join(' · ') : undefined
 }
 
 interface Props {
@@ -21,9 +30,7 @@ export function UnifiedStats({ data }: Props) {
       icon: DollarSign,
       color: 'text-blue-600 dark:text-blue-400',
       bg: 'bg-blue-50 dark:bg-blue-950',
-      sub: data.googleAdSpend > 0 && data.metaAdSpend > 0
-        ? `Google $${fmt(data.googleAdSpend)} · Meta $${fmt(data.metaAdSpend)}`
-        : undefined,
+      sub: buildSpendSub(data),
     },
     {
       label: 'Paid Impressions',
@@ -32,6 +39,14 @@ export function UnifiedStats({ data }: Props) {
       color: 'text-purple-600 dark:text-purple-400',
       bg: 'bg-purple-50 dark:bg-purple-950',
       sub: data.totalClicks > 0 ? `${fmt(data.totalClicks)} clicks` : undefined,
+    },
+    {
+      label: 'Conversions',
+      value: data.totalConversions > 0 ? fmt(data.totalConversions) : '—',
+      icon: Target,
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950',
+      sub: data.googleRoas > 0 ? `Google ROAS ${data.googleRoas.toFixed(2)}x` : undefined,
     },
     {
       label: 'Organic Clicks',
@@ -54,7 +69,7 @@ export function UnifiedStats({ data }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">

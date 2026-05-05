@@ -1,38 +1,11 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { decrypt } from '@/lib/encryption'
-import { refreshAccessToken } from '@/services/google/auth'
-import { encrypt } from '@/lib/encryption'
-import { getGa4ReportDummy, getGa4ReportFromApi } from '@/services/google/ga4'
-import { getAdsReportDummy, getAdsReportFromApi } from '@/services/google/ads'
-import { getGscReportDummy, getGscReportFromApi } from '@/services/google/gsc'
-import { getMetaReportDummy, getMetaReportFromApi } from '@/services/meta/ads'
 import { z } from 'zod'
-
-const DUMMY_GOOGLE = 'dummy_access_token'
-const DUMMY_META = 'dummy_meta_token'
 
 const schema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
-
-async function resolveGoogleToken(
-  workspaceId: string,
-  account: { accessToken: string; refreshToken: string | null; expiresAt: Date | null }
-): Promise<string> {
-  const decrypted = decrypt(account.accessToken)
-  if (decrypted === DUMMY_GOOGLE) return DUMMY_GOOGLE
-  const expiresAt = account.expiresAt?.getTime() ?? 0
-  if (Date.now() < expiresAt - 5 * 60 * 1000) return decrypted
-  if (!account.refreshToken) throw new Error('No refresh token')
-  const refreshed = await refreshAccessToken(decrypt(account.refreshToken))
-  await prisma.connectedAccount.update({
-    where: { workspaceId_provider: { workspaceId, provider: 'google' } },
-    data: { accessToken: encrypt(refreshed.accessToken), expiresAt: new Date(Date.now() + refreshed.expiresIn * 1000) },
-  })
-  return refreshed.accessToken
-}
 
 export interface UnifiedReport {
   dateRange: { startDate: string; endDate: string }
@@ -40,13 +13,34 @@ export interface UnifiedReport {
   totalAdSpend: number
   googleAdSpend: number
   metaAdSpend: number
+  tiktokAdSpend: number
+  linkedinAdSpend: number
   totalImpressions: number
   totalClicks: number
   organicClicks: number
   sessions: number
   avgPosition: number
+  totalConversions: number
+  googleRoas: number
   spendByChannel: { channel: string; spend: number; color: string }[]
-  dailySpend: { date: string; google: number; meta: number }[]
+  dailySpend: { date: string; google: number; meta: number; tiktok: number; linkedin: number }[]
+}
+
+async function fetchJson(url: string, cookie: string): Promise<Record<string, unknown> | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    const res = await fetch(url, { headers: { Cookie: cookie }, signal: controller.signal })
+    clearTimeout(timeout)
+    return res.ok ? res.json() : null
+  } catch {
+    return null
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function overview(data: any, key: string): number {
+  return data?.overview?.[key] ?? 0
 }
 
 export async function GET(req: Request) {
@@ -63,69 +57,48 @@ export async function GET(req: Request) {
   const workspaceId = session.user.workspaceId
   const { startDate, endDate } = parsed.data
 
-  const accounts = await prisma.connectedAccount.findMany({
-    where: { workspaceId },
-  })
-
+  const accounts = await prisma.connectedAccount.findMany({ where: { workspaceId } })
   const googleAccount = accounts.find((a) => a.provider === 'google')
   const metaAccount = accounts.find((a) => a.provider === 'meta')
   const wpAccount = accounts.find((a) => a.provider === 'wordpress')
-
   const gscMeta = googleAccount?.metadata as Record<string, string> | null
   const hasGsc = !!gscMeta?.gscSiteUrl
-  const googleAdsCustomerId = gscMeta?.googleAdsCustomerId ?? ''
 
-  // Fetch all sources in parallel (gracefully handle missing connections)
-  const [adsResult, metaResult, ga4Result, gscResult] = await Promise.allSettled([
-    googleAccount && googleAdsCustomerId
-      ? resolveGoogleToken(workspaceId, googleAccount).then((token) =>
-          token === DUMMY_GOOGLE
-            ? getAdsReportDummy(startDate, endDate)
-            : getAdsReportFromApi(token, googleAdsCustomerId, startDate, endDate)
-        )
-      : Promise.reject('not connected'),
-    metaAccount
-      ? (async () => {
-          const token = decrypt(metaAccount.accessToken)
-          return token === DUMMY_META
-            ? getMetaReportDummy(startDate, endDate)
-            : getMetaReportFromApi(token, metaAccount.propertyId ?? '', startDate, endDate)
-        })()
-      : Promise.reject('not connected'),
-    googleAccount
-      ? resolveGoogleToken(workspaceId, googleAccount).then((token) =>
-          token === DUMMY_GOOGLE
-            ? getGa4ReportDummy(startDate, endDate)
-            : getGa4ReportFromApi(token, googleAccount.propertyId ?? '', startDate, endDate)
-        )
-      : Promise.reject('not connected'),
-    googleAccount && hasGsc
-      ? resolveGoogleToken(workspaceId, googleAccount).then((token) =>
-          token === DUMMY_GOOGLE
-            ? getGscReportDummy(startDate, endDate)
-            : getGscReportFromApi(token, gscMeta!.gscSiteUrl, startDate, endDate)
-        )
-      : Promise.reject('not connected'),
+  const reqUrl = new URL(req.url)
+  const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`
+  const cookie = req.headers.get('cookie') ?? ''
+  const qs = `?startDate=${startDate}&endDate=${endDate}`
+
+  const [ads, meta, ga4, gsc, tiktok, linkedin] = await Promise.all([
+    fetchJson(`${baseUrl}/api/analytics/ads${qs}`, cookie),
+    fetchJson(`${baseUrl}/api/analytics/meta${qs}`, cookie),
+    fetchJson(`${baseUrl}/api/analytics/ga4${qs}`, cookie),
+    fetchJson(`${baseUrl}/api/analytics/gsc${qs}`, cookie),
+    fetchJson(`${baseUrl}/api/analytics/tiktok${qs}`, cookie),
+    fetchJson(`${baseUrl}/api/analytics/linkedin${qs}`, cookie),
   ])
 
-  const ads = adsResult.status === 'fulfilled' ? adsResult.value : null
-  const meta = metaResult.status === 'fulfilled' ? metaResult.value : null
-  const ga4 = ga4Result.status === 'fulfilled' ? ga4Result.value : null
-  const gsc = gscResult.status === 'fulfilled' ? gscResult.value : null
+  const googleAdSpend = overview(ads, 'spend')
+  const metaAdSpend = overview(meta, 'spend')
+  const tiktokAdSpend = overview(tiktok, 'spend')
+  const linkedinAdSpend = overview(linkedin, 'spend')
+  const totalAdSpend = googleAdSpend + metaAdSpend + tiktokAdSpend + linkedinAdSpend
 
-  const googleAdSpend = ads?.overview.spend ?? 0
-  const metaAdSpend = meta?.overview.spend ?? 0
-  const totalAdSpend = googleAdSpend + metaAdSpend
+  const dailyMap = new Map<string, { google: number; meta: number; tiktok: number; linkedin: number }>()
+  function addToDay(date: string, channel: 'google' | 'meta' | 'tiktok' | 'linkedin', spend: number) {
+    if (!dailyMap.has(date)) dailyMap.set(date, { google: 0, meta: 0, tiktok: 0, linkedin: 0 })
+    dailyMap.get(date)![channel] += spend
+  }
 
-  // Merge daily spend
-  const dailyMap = new Map<string, { google: number; meta: number }>()
-  for (const row of ads?.daily ?? []) {
-    dailyMap.set(row.date, { google: row.spend, meta: 0 })
-  }
-  for (const row of meta?.daily ?? []) {
-    const existing = dailyMap.get(row.date) ?? { google: 0, meta: 0 }
-    dailyMap.set(row.date, { ...existing, meta: row.spend })
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (ads as any)?.daily ?? []) addToDay(row.date, 'google', row.spend ?? 0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (meta as any)?.daily ?? []) addToDay(row.date, 'meta', row.spend ?? 0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (tiktok as any)?.daily ?? []) addToDay(row.date, 'tiktok', row.spend ?? 0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (linkedin as any)?.daily ?? []) addToDay(row.date, 'linkedin', row.spend ?? 0)
+
   const dailySpend = Array.from(dailyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, v]) => ({ date, ...v }))
@@ -133,6 +106,8 @@ export async function GET(req: Request) {
   const spendByChannel: { channel: string; spend: number; color: string }[] = []
   if (googleAdSpend > 0) spendByChannel.push({ channel: 'Google Ads', spend: googleAdSpend, color: '#3b82f6' })
   if (metaAdSpend > 0) spendByChannel.push({ channel: 'Meta Ads', spend: metaAdSpend, color: '#ec4899' })
+  if (tiktokAdSpend > 0) spendByChannel.push({ channel: 'TikTok Ads', spend: tiktokAdSpend, color: '#14b8a6' })
+  if (linkedinAdSpend > 0) spendByChannel.push({ channel: 'LinkedIn Ads', spend: linkedinAdSpend, color: '#0a66c2' })
 
   const report: UnifiedReport = {
     dateRange: { startDate, endDate },
@@ -145,11 +120,27 @@ export async function GET(req: Request) {
     totalAdSpend: Math.round(totalAdSpend * 100) / 100,
     googleAdSpend: Math.round(googleAdSpend * 100) / 100,
     metaAdSpend: Math.round(metaAdSpend * 100) / 100,
-    totalImpressions: (ads?.overview.impressions ?? 0) + (meta?.overview.impressions ?? 0),
-    totalClicks: (ads?.overview.clicks ?? 0) + (meta?.overview.clicks ?? 0),
-    organicClicks: gsc?.overview.clicks ?? 0,
-    sessions: ga4?.overview.sessions ?? 0,
-    avgPosition: gsc?.overview.position ?? 0,
+    tiktokAdSpend: Math.round(tiktokAdSpend * 100) / 100,
+    linkedinAdSpend: Math.round(linkedinAdSpend * 100) / 100,
+    totalImpressions:
+      overview(ads, 'impressions') +
+      overview(meta, 'impressions') +
+      overview(tiktok, 'impressions') +
+      overview(linkedin, 'impressions'),
+    totalClicks:
+      overview(ads, 'clicks') +
+      overview(meta, 'clicks') +
+      overview(tiktok, 'clicks') +
+      overview(linkedin, 'clicks'),
+    organicClicks: overview(gsc, 'clicks'),
+    sessions: overview(ga4, 'sessions'),
+    avgPosition: overview(gsc, 'position'),
+    totalConversions:
+      overview(ads, 'conversions') +
+      overview(meta, 'conversions') +
+      overview(tiktok, 'conversions') +
+      overview(linkedin, 'conversions'),
+    googleRoas: overview(ads, 'roas'),
     spendByChannel,
     dailySpend,
   }

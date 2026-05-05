@@ -87,7 +87,7 @@ export default function DashboardPage() {
       {report && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <SpendBreakdownChart data={report.dailySpend} connected={report.connected} />
+            <SpendBreakdownChart data={report.dailySpend} connected={report.connected} tiktokAdSpend={report.tiktokAdSpend} linkedinAdSpend={report.linkedinAdSpend} />
           </div>
           <div>
             <AiSummaryWidget report={report} />
@@ -111,8 +111,8 @@ function DashboardSkeleton() {
         </div>
         <div className="h-9 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
           <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
         ))}
       </div>
