@@ -37,25 +37,25 @@ export function AdsCampaignsTable({ campaigns }: Props) {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white truncate max-w-[180px]">
                     {c.name}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${c.spend.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.clicks.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${(c.spend ?? 0).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{(c.clicks ?? 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                    {c.impressions >= 1000
-                      ? `${(c.impressions / 1000).toFixed(1)}K`
-                      : c.impressions}
+                    {(c.impressions ?? 0) >= 1000
+                      ? `${((c.impressions ?? 0) / 1000).toFixed(1)}K`
+                      : (c.impressions ?? 0)}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${c.cpc.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${(c.cpc ?? 0).toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`font-semibold ${
-                        c.roas >= 4
+                        (c.roas ?? 0) >= 4
                           ? 'text-green-600 dark:text-green-400'
-                          : c.roas >= 2
+                          : (c.roas ?? 0) >= 2
                           ? 'text-yellow-600 dark:text-yellow-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}
                     >
-                      {c.roas.toFixed(1)}x
+                      {(c.roas ?? 0).toFixed(1)}x
                     </span>
                   </td>
                 </tr>
