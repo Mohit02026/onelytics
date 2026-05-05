@@ -2,10 +2,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DollarSign, MousePointerClick, Eye, TrendingUp } from 'lucide-react'
 import type { AdsOverview } from '@/services/google/ads'
 
-function fmt(n: number, decimals = 0) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString('en-US', { maximumFractionDigits: decimals })
+function fmt(n: number | null | undefined, decimals = 0) {
+  const v = n ?? 0
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`
+  return v.toLocaleString('en-US', { maximumFractionDigits: decimals })
 }
 
 interface Props {
@@ -37,11 +38,11 @@ export function AdsOverviewCards({ data }: Props) {
     },
     {
       label: 'ROAS',
-      value: `${data.roas.toFixed(1)}x`,
+      value: `${(data.roas ?? 0).toFixed(1)}x`,
       icon: TrendingUp,
       color: 'text-green-600 dark:text-green-400',
       bg: 'bg-green-50 dark:bg-green-950',
-      sub: `CPC $${data.cpc.toFixed(2)}`,
+      sub: `CPC $${(data.cpc ?? 0).toFixed(2)}`,
     },
   ]
 
