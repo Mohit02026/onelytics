@@ -38,6 +38,16 @@ export interface ReportData {
   momComparisons: MoMMetric[]
   aiNarrative: string
   generatedAt: string
+  // Full platform data for detailed DOCX sections
+  platforms?: {
+    googleAds?: Record<string, unknown> | null
+    meta?: Record<string, unknown> | null
+    tiktok?: Record<string, unknown> | null
+    linkedin?: Record<string, unknown> | null
+    ga4?: Record<string, unknown> | null
+    gsc?: Record<string, unknown> | null
+    wordpress?: Record<string, unknown> | null
+  }
 }
 
 function prevRange(startDate: string, endDate: string) {
@@ -78,25 +88,28 @@ export async function generateReport(
   const prev = prevRange(startDate, endDate)
   const headers = { Cookie: authCookie }
 
-  const platforms = ['ga4', 'ads', 'meta', 'tiktok', 'linkedin', 'gsc']
+  const paidPlatforms = ['ga4', 'ads', 'meta', 'tiktok', 'linkedin', 'gsc']
   const qs = (s: string, e: string) => `?startDate=${s}&endDate=${e}`
 
-  // Fetch current + previous period for all platforms
-  const [currentResults, prevResults] = await Promise.all([
+  // Fetch current + previous period for paid/organic platforms; wordpress current only
+  const [currentResults, prevResults, wpResult] = await Promise.all([
     Promise.allSettled(
-      platforms.map((p) =>
+      paidPlatforms.map((p) =>
         fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(startDate, endDate)}`, headers)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null)
       )
     ),
     Promise.allSettled(
-      platforms.map((p) =>
+      paidPlatforms.map((p) =>
         fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(prev.startDate, prev.endDate)}`, headers)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null)
       )
     ),
+    fetchWithTimeout(`${baseUrl}/api/analytics/wordpress`, headers)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
   ])
 
   const [ga4, ads, meta, tiktok, linkedin, gsc] = currentResults.map((r) =>
@@ -105,6 +118,7 @@ export async function generateReport(
   const [pGa4, pAds, pMeta, pTiktok, pLinkedin, pGsc] = prevResults.map((r) =>
     r.status === 'fulfilled' ? r.value : null
   )
+  const wordpress = wpResult
 
   // Build channel metrics
   const channels: ChannelMetrics[] = []
@@ -113,7 +127,7 @@ export async function generateReport(
     channels.push({
       channel: 'Google Ads',
       color: '#4285f4',
-      spend: ads.overview.cost ?? 0,
+      spend: ads.overview.spend ?? 0,
       impressions: ads.overview.impressions ?? 0,
       clicks: ads.overview.clicks ?? 0,
       ctr: ads.overview.ctr ?? 0,
@@ -176,7 +190,7 @@ export async function generateReport(
 
   // Previous period totals for MoM
   const prevChannels = {
-    googleAds: pAds?.overview?.cost ?? 0,
+    googleAds: pAds?.overview?.spend ?? 0,
     meta: pMeta?.overview?.spend ?? 0,
     tiktok: pTiktok?.overview?.spend ?? 0,
     linkedin: pLinkedin?.overview?.spend ?? 0,
@@ -189,8 +203,8 @@ export async function generateReport(
     (pLinkedin?.overview?.conversions ?? 0)
   const prevOrganicClicks = pGa4?.overview?.sessions ?? 0
   const organicClicks = ga4?.overview?.sessions ?? 0
-  const organicKeywordClicks = gsc?.overview?.totalClicks ?? 0
-  const prevOrganicKeywordClicks = pGsc?.overview?.totalClicks ?? 0
+  const organicKeywordClicks = gsc?.overview?.clicks ?? 0
+  const prevOrganicKeywordClicks = pGsc?.overview?.clicks ?? 0
 
   const momComparisons: MoMMetric[] = [
     {
@@ -234,7 +248,7 @@ export async function generateReport(
     if (channel === 'linkedin') day.linkedin += spend
   }
 
-  for (const row of ads?.daily ?? []) addToDay(row.date, 'google', row.cost ?? 0)
+  for (const row of ads?.daily ?? []) addToDay(row.date, 'google', row.spend ?? 0)
   for (const row of meta?.daily ?? []) addToDay(row.date, 'meta', row.spend ?? 0)
   for (const row of tiktok?.daily ?? []) addToDay(row.date, 'tiktok', row.spend ?? 0)
   for (const row of linkedin?.daily ?? []) addToDay(row.date, 'linkedin', row.spend ?? 0)
@@ -298,5 +312,14 @@ Write a 3-4 sentence executive summary for the client. Be specific about the num
     momComparisons,
     aiNarrative,
     generatedAt: new Date().toISOString(),
+    platforms: {
+      googleAds: ads,
+      meta,
+      tiktok,
+      linkedin,
+      ga4,
+      gsc,
+      wordpress,
+    },
   }
 }
