@@ -26,7 +26,7 @@ export async function GET() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      const msg = (err as any)?.error?.message ?? `HTTP ${res.status}`
+      const msg = (err as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`
       return Response.json({ error: msg }, { status: res.status })
     }
 
@@ -39,8 +39,9 @@ export async function GET() {
     })
 
     return Response.json(customers)
-  } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    return Response.json({ error: msg }, { status: 500 })
   }
 }
 

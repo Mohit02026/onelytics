@@ -274,36 +274,8 @@ export async function generateReport(
     }))
 
   // AI narrative
-  let aiNarrative = ''
-  if (process.env.ANTHROPIC_API_KEY && channels.length > 0) {
-    try {
-      const client = new Anthropic()
-      const prompt = `You are a senior digital marketing analyst writing a client report summary.
-
-Period: ${startDate} to ${endDate}
-Total Ad Spend: $${totalSpend.toFixed(2)}
-Total Conversions: ${totalConversions}
-Average CPA: $${avgCpa.toFixed(2)}
-Channels active: ${channels.map((c) => c.channel).join(', ')}
-
-Channel breakdown:
-${channels.map((c) => `- ${c.channel}: $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.conversions} conversions`).join('\n')}
-
-MoM changes:
-${momComparisons.map((m) => `- ${m.label}: ${m.delta > 0 ? '+' : ''}${m.delta}%`).join('\n')}
-
-Write a 3-4 sentence executive summary for the client. Be specific about the numbers. Then give 3 bullet points with the top insights or recommendations. Keep it professional and concise.`
-
-      const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        messages: [{ role: 'user', content: prompt }],
-      })
-      aiNarrative = msg.content[0].type === 'text' ? msg.content[0].text : ''
-    } catch {
-      aiNarrative = ''
-    }
-  }
+  // AI narrative is generated separately (non-blocking) — returns empty string here
+  const aiNarrative = ''
 
   return {
     title,
@@ -332,5 +304,37 @@ Write a 3-4 sentence executive summary for the client. Be specific about the num
       gbp,
       wordpress,
     },
+  }
+}
+
+export async function generateAINarrative(reportData: ReportData): Promise<string> {
+  if (!process.env.ANTHROPIC_API_KEY || reportData.channels.length === 0) return ''
+  try {
+    const { channels, executiveSummary: es, momComparisons, dateRange } = reportData
+    const client = new Anthropic()
+    const prompt = `You are a senior digital marketing analyst writing a client report summary.
+
+Period: ${dateRange.startDate} to ${dateRange.endDate}
+Total Ad Spend: $${es.totalSpend.toFixed(2)}
+Total Conversions: ${es.totalConversions}
+Average CPA: $${es.avgCpa.toFixed(2)}
+Channels active: ${channels.map((c) => c.channel).join(', ')}
+
+Channel breakdown:
+${channels.map((c) => `- ${c.channel}: $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.conversions} conversions`).join('\n')}
+
+MoM changes:
+${momComparisons.map((m) => `- ${m.label}: ${m.delta > 0 ? '+' : ''}${m.delta}%`).join('\n')}
+
+Write a 3-4 sentence executive summary for the client. Be specific about the numbers. Then give 3 bullet points with the top insights or recommendations. Keep it professional and concise.`
+
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0].type === 'text' ? msg.content[0].text : ''
+  } catch {
+    return ''
   }
 }

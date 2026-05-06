@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { encrypt, decrypt } from '@/lib/encryption'
-import { getGscReport, DUMMY_TOKEN } from '@/services/google/gsc'
+import { getGscReport } from '@/services/google/gsc'
 import { resolveGoogleToken } from '@/services/google/auth'
 import { z } from 'zod'
 

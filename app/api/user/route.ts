@@ -20,7 +20,7 @@ export async function PATCH(req: Request) {
   }
 
   const { name, currentPassword, newPassword } = parsed.data
-  const updateData: any = {}
+  const updateData: Record<string, unknown> = {}
 
   if (name) updateData.name = name
 

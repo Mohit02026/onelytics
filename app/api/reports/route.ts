@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { generateReport } from '@/services/reports/generate'
+import { generateReport, generateAINarrative } from '@/services/reports/generate'
 import { z } from 'zod'
 import { headers } from 'next/headers'
 
@@ -66,8 +66,20 @@ export async function POST(req: Request) {
     const data = await generateReport(workspaceId, startDate, endDate, title, baseUrl, cookie)
     await prisma.generatedReport.update({
       where: { id: report.id },
-      data: { status: 'READY', data: data as object, summary: data.aiNarrative },
+      data: { status: 'READY', data: data as object },
     })
+
+    // Fire AI narrative in background — does not block the response
+    generateAINarrative(data).then(async (narrative) => {
+      if (!narrative) return
+      const current = await prisma.generatedReport.findUnique({ where: { id: report.id }, select: { data: true } })
+      if (!current?.data) return
+      await prisma.generatedReport.update({
+        where: { id: report.id },
+        data: { data: { ...(current.data as object), aiNarrative: narrative }, summary: narrative },
+      })
+    }).catch(() => {})
+
     return Response.json({ ...report, status: 'READY' })
   } catch (err) {
     await prisma.generatedReport.update({

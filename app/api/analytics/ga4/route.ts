@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { encrypt, decrypt } from '@/lib/encryption'
-import { getGa4Report, DUMMY_TOKEN } from '@/services/google/ga4'
+import { getGa4Report } from '@/services/google/ga4'
 import { resolveGoogleToken } from '@/services/google/auth'
 import { z } from 'zod'
 

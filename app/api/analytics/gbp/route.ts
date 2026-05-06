@@ -2,7 +2,6 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { resolveGoogleToken } from '@/services/google/auth'
 import { getGbpReportFromApi, getGbpReportDummy } from '@/services/google/gbp'
-import { DUMMY_TOKEN } from '@/services/google/gsc' // We can just use the same string 'dummy_access_token' or import it
 import { z } from 'zod'
 
 const schema = z.object({
@@ -52,9 +51,10 @@ export async function GET(req: Request) {
   } else {
     try {
       report = await getGbpReportFromApi(locationName, accessToken, startDate, endDate)
-    } catch (e: any) {
-      console.error('GBP API error', e)
-      return Response.json({ error: e.message }, { status: 502 })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      console.error('GBP API error', msg)
+      return Response.json({ error: msg }, { status: 502 })
     }
   }
 

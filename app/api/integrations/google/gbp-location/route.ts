@@ -24,7 +24,7 @@ export async function GET() {
 
     if (!accRes.ok) {
       const errBody = await accRes.json().catch(() => ({}))
-      const msg = (errBody as any)?.error?.message ?? `HTTP ${accRes.status}`
+      const msg = (errBody as { error?: { message?: string } })?.error?.message ?? `HTTP ${accRes.status}`
       throw new Error(`GBP accounts API error: ${msg}`)
     }
 
@@ -55,9 +55,10 @@ export async function GET() {
     }
 
     return NextResponse.json(locations)
-  } catch (error: any) {
-    console.error('GBP fetch error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.error('GBP fetch error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
@@ -101,7 +102,8 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

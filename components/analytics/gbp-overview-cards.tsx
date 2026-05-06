@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { Eye, Map, PhoneCall, MousePointerClick, Star, Navigation } from 'lucide-react'
+import { Eye, PhoneCall, MousePointerClick, Star, Navigation } from 'lucide-react'
 import type { GbpReport } from '@/services/google/gbp'
 
 function fmt(n: number | null | undefined) {

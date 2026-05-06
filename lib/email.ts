@@ -56,8 +56,9 @@ export async function sendInviteEmail({
     }
 
     return { success: true, data }
-  } catch (err: any) {
-    console.error('Failed to send email:', err)
-    return { error: err.message || 'Failed to send email' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to send email'
+    console.error('Failed to send email:', msg)
+    return { error: msg }
   }
 }
