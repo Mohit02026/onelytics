@@ -167,7 +167,9 @@ function ConnectPageInner() {
   const [gbpSaveLoading, setGbpSaveLoading] = useState(false)
   const [gbpSaveError, setGbpSaveError] = useState('')
 
-  // Ads picker (manual)
+  // Ads picker
+  const [adsCustomers, setAdsCustomers] = useState<{ id: string; formatted: string }[]>([])
+  const [adsCustomerListLoading, setAdsCustomerListLoading] = useState(false)
   const [adsCustomerInput, setAdsCustomerInput] = useState('')
   const [adsCustomerLoading, setAdsCustomerLoading] = useState(false)
   const [adsCustomerError, setAdsCustomerError] = useState('')
@@ -339,7 +341,24 @@ function ConnectPageInner() {
         if (service === 'ga4') { openGa4Picker(); return }
         if (service === 'gsc') { openGscPicker(); return }
         if (service === 'gbp') { openGbpPicker(); return }
-        if (service === 'ads') { setActivePicker('ads'); setAdsCustomerError(''); setAdsCustomerInput(''); return }
+        if (service === 'ads') {
+          setActivePicker('ads')
+          setAdsCustomerError('')
+          // Pre-populate with saved ID if one exists
+          const saved = status.googleAdsCustomerId ?? ''
+          setAdsCustomerInput(saved ? saved.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') : '')
+          setAdsCustomers([])
+          setAdsCustomerListLoading(true)
+          fetch('/api/integrations/google/ads-customer')
+            .then(r => r.json())
+            .then(data => {
+              if (Array.isArray(data)) setAdsCustomers(data)
+              else if (data?.error) console.warn('Ads customer list:', data.error)
+            })
+            .catch(() => {})
+            .finally(() => setAdsCustomerListLoading(false))
+          return
+        }
       }
 
       setActionLoading(id)
@@ -678,10 +697,30 @@ function ConnectPageInner() {
   function renderAdsPicker() {
     return (
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Enter your Google Ads Customer ID</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          Find it in Google Ads → click the help icon → Customer ID. Format: 123-456-7890
-        </p>
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Select your Google Ads account</p>
+        {adsCustomerListLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading accounts…
+          </div>
+        ) : adsCustomers.length > 0 ? (
+          <>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select an account or type the ID manually below.</p>
+            <select
+              value={adsCustomerInput}
+              onChange={(e) => setAdsCustomerInput(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— select an account —</option>
+              {adsCustomers.map((c) => (
+                <option key={c.id} value={c.id}>{c.formatted}</option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Enter your Customer ID manually. Find it in Google Ads → help icon → Customer ID. Format: 123-456-7890
+          </p>
+        )}
         <input
           type="text"
           value={adsCustomerInput}
@@ -694,7 +733,7 @@ function ConnectPageInner() {
           <Button onClick={handleSaveAds} disabled={adsCustomerLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
             {adsCustomerLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
           </Button>
-          <Button variant="outline" onClick={() => { setActivePicker(null); setAdsCustomerInput(''); setAdsCustomerError('') }} className="shrink-0">Cancel</Button>
+          <Button variant="outline" onClick={() => { setActivePicker(null); setAdsCustomerInput(''); setAdsCustomerError(''); setAdsCustomers([]) }} className="shrink-0">Cancel</Button>
         </div>
       </div>
     )

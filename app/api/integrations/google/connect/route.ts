@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { buildGoogleOAuthUrl } from '@/services/google/auth'
+import { redis } from '@/lib/redis'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -14,12 +15,12 @@ export async function GET(req: Request) {
   const state = `${service}:${csrf}`
   const url = buildGoogleOAuthUrl(state)
 
-  const res = NextResponse.json({ url })
-  res.cookies.set('oauth_state', state, {
-    httpOnly: true,
-    maxAge: 600,
-    sameSite: 'lax',
-    path: '/',
-  })
-  return res
+  await redis.set(
+    `google_oauth_state:${state}`,
+    JSON.stringify({ workspaceId: session.user.workspaceId, userId: session.user.id }),
+    'EX',
+    600
+  )
+
+  return NextResponse.json({ url })
 }

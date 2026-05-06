@@ -23,7 +23,9 @@ export async function GET() {
     })
 
     if (!accRes.ok) {
-      throw new Error('Failed to fetch GBP accounts')
+      const errBody = await accRes.json().catch(() => ({}))
+      const msg = (errBody as any)?.error?.message ?? `HTTP ${accRes.status}`
+      throw new Error(`GBP accounts API error: ${msg}`)
     }
 
     const accData = await accRes.json()

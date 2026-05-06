@@ -1,9 +1,8 @@
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { encrypt } from '@/lib/encryption'
 import { exchangeCodeForTokens } from '@/services/google/auth'
+import { redis } from '@/lib/redis'
 
 const BASE = process.env.NEXTAUTH_URL!
 
@@ -21,33 +20,23 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${BASE}/connect?error=invalid_callback`)
   }
 
-  // Verify CSRF state cookie using Next.js cookies() API
-  const cookieStore = await cookies()
-  const savedState = cookieStore.get('oauth_state')?.value
-
-  if (!savedState || savedState !== state) {
+  const stored = await redis.get(`google_oauth_state:${state}`)
+  if (!stored) {
     return NextResponse.redirect(`${BASE}/connect?error=invalid_state`)
   }
 
-  const validServices = ['ga4', 'gsc', 'ads']
+  const { workspaceId } = JSON.parse(stored) as { workspaceId: string; userId: string }
+  await redis.del(`google_oauth_state:${state}`)
+
+  const validServices = ['ga4', 'gsc', 'ads', 'gbp']
   const servicePart = state.split(':')[0]
   const service = validServices.includes(servicePart) ? servicePart : 'ga4'
-
-  const session = await auth()
-  if (!session) {
-    return NextResponse.redirect(`${BASE}/login?callbackUrl=/connect`)
-  }
 
   try {
     const tokens = await exchangeCodeForTokens(code)
 
     await prisma.connectedAccount.upsert({
-      where: {
-        workspaceId_provider: {
-          workspaceId: session.user.workspaceId,
-          provider: 'google',
-        },
-      },
+      where: { workspaceId_provider: { workspaceId, provider: 'google' } },
       update: {
         accessToken: encrypt(tokens.accessToken),
         refreshToken: encrypt(tokens.refreshToken),
@@ -55,7 +44,7 @@ export async function GET(req: Request) {
         scope: tokens.scope,
       },
       create: {
-        workspaceId: session.user.workspaceId,
+        workspaceId,
         provider: 'google',
         accessToken: encrypt(tokens.accessToken),
         refreshToken: encrypt(tokens.refreshToken),
@@ -64,9 +53,7 @@ export async function GET(req: Request) {
       },
     })
 
-    const res = NextResponse.redirect(`${BASE}/connect?google=connected&service=${service}`)
-    res.cookies.set('oauth_state', '', { maxAge: 0, path: '/' })
-    return res
+    return NextResponse.redirect(`${BASE}/connect?google=connected&service=${service}`)
   } catch {
     return NextResponse.redirect(`${BASE}/connect?error=token_exchange_failed`)
   }
