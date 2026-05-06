@@ -33,6 +33,14 @@ export function canEdit(role: MemberRole) {
   return role !== 'VIEWER'
 }
 
+export function canGenerateReports(role: MemberRole) {
+  return role === 'OWNER' || role === 'ADMIN' || role === 'MEMBER'
+}
+
+export function canConnectIntegrations(role: MemberRole) {
+  return role === 'OWNER' || role === 'ADMIN'
+}
+
 export const ROLE_LABELS: Record<MemberRole, string> = {
   OWNER: 'Owner',
   ADMIN: 'Admin',

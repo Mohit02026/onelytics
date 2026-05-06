@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -21,12 +21,17 @@ const PAGE_TITLES: Record<string, string> = {
   '/meta-ads': 'Meta Ads',
   '/connect': 'Connect Accounts',
   '/settings': 'Settings',
+  '/settings/members': 'Team Members',
+  '/profile': 'My Profile',
+  '/reports': 'Reports',
 }
 
 export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { data: session } = useSession()
   const title = PAGE_TITLES[pathname] ?? 'Overview'
+  const initials = (session?.user?.name ?? session?.user?.email ?? 'U')[0].toUpperCase()
 
   return (
     <header className="h-16 flex items-center justify-between px-8 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
@@ -39,16 +44,19 @@ export function Navbar() {
           <Avatar className="w-8 h-8">
             <AvatarImage src="" />
             <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-              U
+              {initials}
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuGroup>
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{session?.user?.name ?? session?.user?.email ?? 'My Account'}</DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
+            Profile
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
             Settings
           </DropdownMenuItem>

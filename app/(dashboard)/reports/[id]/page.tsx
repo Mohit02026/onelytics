@@ -102,7 +102,7 @@ export default function ReportDetailPage() {
         <a href={`/api/reports/${report.id}/download`} download>
           <Button variant="outline" className="flex items-center gap-2">
             <Download className="w-4 h-4" />
-            Download .docx
+            Download PDF
           </Button>
         </a>
       </div>

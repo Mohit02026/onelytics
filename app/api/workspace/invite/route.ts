@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { getMembership, canManageMembers } from '@/lib/workspace'
 import { z } from 'zod'
 import crypto from 'crypto'
+import { sendInviteEmail } from '@/lib/email'
 import type { MemberRole } from '@prisma/client'
 
 const schema = z.object({
@@ -57,6 +58,15 @@ export async function POST(req: Request) {
     select: { id: true, email: true, role: true, token: true, expiresAt: true },
   })
 
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } })
   const inviteUrl = `${process.env.NEXTAUTH_URL}/invite/${token}`
+
+  await sendInviteEmail({
+    to: email,
+    inviteUrl,
+    workspaceName: workspace?.name ?? 'your workspace',
+    role,
+  })
+
   return Response.json({ ...invite, inviteUrl })
 }
