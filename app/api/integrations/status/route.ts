@@ -18,9 +18,11 @@ export async function GET() {
     wordpress: false,
     tiktok: false,
     linkedin: false,
+    gbp: false,
     propertyId: null as string | null,
     gscSiteUrl: null as string | null,
     googleAdsCustomerId: null as string | null,
+    gbpLocationId: null as string | null,
     wpSiteUrl: null as string | null,
     metaAdAccountId: null as string | null,
     tiktokAdvertiserId: null as string | null,
@@ -34,6 +36,8 @@ export async function GET() {
       const meta = account.metadata as Record<string, string> | null
       status.gscSiteUrl = meta?.gscSiteUrl ?? null
       status.googleAdsCustomerId = meta?.googleAdsCustomerId ?? null
+      status.gbpLocationId = meta?.gbpLocationId ?? null
+      if (status.gbpLocationId) status.gbp = true
     }
     if (account.provider === 'meta') {
       status.meta = true

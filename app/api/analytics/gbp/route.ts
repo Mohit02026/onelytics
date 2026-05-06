@@ -1,16 +1,14 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { encrypt, decrypt } from '@/lib/encryption'
-import { getGa4Report, DUMMY_TOKEN } from '@/services/google/ga4'
 import { resolveGoogleToken } from '@/services/google/auth'
+import { getGbpReportFromApi, getGbpReportDummy } from '@/services/google/gbp'
+import { DUMMY_TOKEN } from '@/services/google/gsc' // We can just use the same string 'dummy_access_token' or import it
 import { z } from 'zod'
 
 const schema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
-
-
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -31,42 +29,45 @@ export async function GET(req: Request) {
   })
   if (!account) return Response.json({ error: 'Google not connected' }, { status: 404 })
 
-  // Check 6-hour cache
+  const meta = account.metadata as Record<string, string> | null
+  const locationName = meta?.gbpLocationName ?? ''
+
   const cacheKey = `${startDate}:${endDate}`
   const cached = await prisma.analyticsCache.findUnique({
     where: {
       workspaceId_provider_dataType_dateRange: {
-        workspaceId,
-        provider: 'ga4',
-        dataType: 'report',
-        dateRange: cacheKey,
+        workspaceId, provider: 'gbp', dataType: 'report', dateRange: cacheKey,
       },
     },
   })
-
   if (cached && Date.now() - cached.fetchedAt.getTime() < 6 * 60 * 60 * 1000) {
     return Response.json(cached.data)
   }
 
   const accessToken = await resolveGoogleToken(workspaceId, account)
-  const report = await getGa4Report(accessToken, account.propertyId ?? '', startDate, endDate)
+  
+  let report
+  if (accessToken === 'dummy_access_token' || !locationName) {
+    report = await getGbpReportDummy(startDate, endDate)
+  } else {
+    try {
+      report = await getGbpReportFromApi(locationName, accessToken, startDate, endDate)
+    } catch (e: any) {
+      console.error('GBP API error', e)
+      return Response.json({ error: e.message }, { status: 502 })
+    }
+  }
 
   await prisma.analyticsCache.upsert({
     where: {
       workspaceId_provider_dataType_dateRange: {
-        workspaceId,
-        provider: 'ga4',
-        dataType: 'report',
-        dateRange: cacheKey,
+        workspaceId, provider: 'gbp', dataType: 'report', dateRange: cacheKey,
       },
     },
     update: { data: report as object, fetchedAt: new Date() },
     create: {
-      workspaceId,
-      provider: 'ga4',
-      dataType: 'report',
-      dateRange: cacheKey,
-      data: report as object,
+      workspaceId, provider: 'gbp', dataType: 'report',
+      dateRange: cacheKey, data: report as object,
     },
   })
 

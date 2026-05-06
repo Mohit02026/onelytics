@@ -24,7 +24,7 @@ export function GscKeywordsTable({ keywords }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800">
-                {['Query', 'Clicks', 'Impressions', 'CTR', 'Position'].map((h) => (
+                {['Query', 'Clicks', 'Impressions', 'CTR', 'Position', 'Change', 'Volume'].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
@@ -56,6 +56,18 @@ export function GscKeywordsTable({ keywords }: Props) {
                   </td>
                   <td className={`px-4 py-3 font-semibold ${positionColor(k.position)}`}>
                     {k.position.toFixed(1)}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-medium">
+                    {k.positionChange === undefined || k.positionChange === 0 ? (
+                      <span className="text-gray-400">—</span>
+                    ) : k.positionChange > 0 ? (
+                      <span className="text-green-600 dark:text-green-400">▲ {k.positionChange.toFixed(1)}</span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-400">▼ {Math.abs(k.positionChange).toFixed(1)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-400">
+                    <span title="Search volume coming soon" className="cursor-help border-b border-dotted border-gray-400">—</span>
                   </td>
                 </tr>
               ))}

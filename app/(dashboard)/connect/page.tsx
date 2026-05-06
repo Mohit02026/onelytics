@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Activity, BarChart3, Search, Share2, Globe, Loader2,
-  CheckCircle2, XCircle, AlertCircle, Music2, Briefcase,
+  CheckCircle2, XCircle, AlertCircle, Music2, Briefcase, Building2,
 } from 'lucide-react'
 
 interface ConnectionStatus {
@@ -18,9 +18,11 @@ interface ConnectionStatus {
   wordpress: boolean
   tiktok: boolean
   linkedin: boolean
+  gbp: boolean
   propertyId: string | null
   gscSiteUrl: string | null
   googleAdsCustomerId: string | null
+  gbpLocationId: string | null
   wpSiteUrl: string | null
   metaAdAccountId: string | null
   tiktokAdvertiserId: string | null
@@ -29,7 +31,8 @@ interface ConnectionStatus {
 
 interface Ga4Property { id: string; name: string; account: string }
 interface GscSite { url: string; permission: string }
-type ActivePicker = 'ga4' | 'gsc' | 'ads' | null
+interface GbpLocation { id: string; name: string; address: string }
+type ActivePicker = 'ga4' | 'gsc' | 'ads' | 'gbp' | null
 
 const integrations = [
   {
@@ -57,6 +60,15 @@ const integrations = [
     color: 'text-purple-600 dark:text-purple-400',
     bg: 'bg-purple-100 dark:bg-purple-900/50',
     description: 'Analyze organic search traffic and keyword rankings.',
+    phase: 2,
+  },
+  {
+    id: 'gbp',
+    name: 'Google Business',
+    icon: Building2,
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bg: 'bg-indigo-100 dark:bg-indigo-900/50',
+    description: 'Track local search views, calls, directions, and reviews.',
     phase: 2,
   },
   {
@@ -111,6 +123,7 @@ const PARTIAL_LABELS: Record<string, string> = {
   google: 'Connected — select property',
   'google-ads': 'Connected — needs customer ID',
   gsc: 'Connected — select site',
+  gbp: 'Connected — select location',
   meta: 'Connected — needs ad account',
   tiktok: 'Connected — needs advertiser ID',
   linkedin: 'Connected — needs account ID',
@@ -120,8 +133,8 @@ function ConnectPageInner() {
   const searchParams = useSearchParams()
 
   const [status, setStatus] = useState<ConnectionStatus>({
-    google: false, meta: false, wordpress: false, tiktok: false, linkedin: false,
-    propertyId: null, gscSiteUrl: null, googleAdsCustomerId: null,
+    google: false, meta: false, wordpress: false, tiktok: false, linkedin: false, gbp: false,
+    propertyId: null, gscSiteUrl: null, googleAdsCustomerId: null, gbpLocationId: null,
     wpSiteUrl: null, metaAdAccountId: null, tiktokAdvertiserId: null, linkedinAccountId: null,
   })
   const [loading, setLoading] = useState(true)
@@ -145,6 +158,14 @@ function ConnectPageInner() {
   const [selectedGsc, setSelectedGsc] = useState('')
   const [gscSaveLoading, setGscSaveLoading] = useState(false)
   const [gscSaveError, setGscSaveError] = useState('')
+
+  // GBP picker
+  const [gbpLocations, setGbpLocations] = useState<GbpLocation[]>([])
+  const [gbpPickerLoading, setGbpPickerLoading] = useState(false)
+  const [gbpPickerError, setGbpPickerError] = useState('')
+  const [selectedGbp, setSelectedGbp] = useState('')
+  const [gbpSaveLoading, setGbpSaveLoading] = useState(false)
+  const [gbpSaveError, setGbpSaveError] = useState('')
 
   // Ads picker (manual)
   const [adsCustomerInput, setAdsCustomerInput] = useState('')
@@ -241,6 +262,27 @@ function ConnectPageInner() {
     }
   }, [])
 
+  const openGbpPicker = useCallback(async () => {
+    setActivePicker('gbp')
+    setGbpPickerLoading(true)
+    setGbpPickerError('')
+    setSelectedGbp('')
+    setGbpSaveError('')
+    try {
+      const res = await fetch('/api/integrations/google/gbp-location')
+      const data = await res.json()
+      if (res.ok) {
+        setGbpLocations(data ?? [])
+      } else {
+        setGbpPickerError(data.error ?? 'Failed to load locations.')
+      }
+    } catch {
+      setGbpPickerError('Network error. Please try again.')
+    } finally {
+      setGbpPickerLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     const googleParam = searchParams.get('google')
     const metaParam = searchParams.get('meta')
@@ -257,6 +299,9 @@ function ConnectPageInner() {
       } else if (service === 'gsc') {
         setToast({ type: 'success', message: 'Google connected — select your Search Console site below.' })
         openGscPicker()
+      } else if (service === 'gbp') {
+        setToast({ type: 'success', message: 'Google connected — select your Google Business location below.' })
+        openGbpPicker()
       } else if (service === 'ads') {
         setToast({ type: 'success', message: 'Google connected — enter your Ads customer ID below.' })
         setActivePicker('ads')
@@ -278,7 +323,7 @@ function ConnectPageInner() {
     } else if (error) {
       setToast({ type: 'error', message: ERROR_MESSAGES[error] ?? 'An error occurred.' })
     }
-  }, [searchParams, fetchStatus, openGa4Picker, openGscPicker])
+  }, [searchParams, fetchStatus, openGa4Picker, openGscPicker, openGbpPicker])
 
   useEffect(() => {
     if (!toast) return
@@ -287,12 +332,13 @@ function ConnectPageInner() {
   }, [toast])
 
   async function handleConnect(id: string) {
-    if (id === 'google' || id === 'google-ads' || id === 'gsc') {
-      const service = id === 'google' ? 'ga4' : id === 'google-ads' ? 'ads' : 'gsc'
+    if (id === 'google' || id === 'google-ads' || id === 'gsc' || id === 'gbp') {
+      const service = id === 'google' ? 'ga4' : id === 'google-ads' ? 'ads' : id === 'gsc' ? 'gsc' : 'gbp'
 
       if (status.google) {
         if (service === 'ga4') { openGa4Picker(); return }
         if (service === 'gsc') { openGscPicker(); return }
+        if (service === 'gbp') { openGbpPicker(); return }
         if (service === 'ads') { setActivePicker('ads'); setAdsCustomerError(''); setAdsCustomerInput(''); return }
       }
 
@@ -347,7 +393,7 @@ function ConnectPageInner() {
 
   async function handleDisconnect(id: string) {
     const endpoint =
-      id === 'google' || id === 'google-ads' || id === 'gsc' ? '/api/integrations/google/disconnect' :
+      id === 'google' || id === 'google-ads' || id === 'gsc' || id === 'gbp' ? '/api/integrations/google/disconnect' :
       id === 'wordpress' ? '/api/integrations/wordpress/disconnect' :
       id === 'meta' ? '/api/integrations/meta/disconnect' :
       id === 'tiktok' ? '/api/integrations/tiktok/disconnect' :
@@ -358,7 +404,7 @@ function ConnectPageInner() {
     try {
       const res = await fetch(endpoint, { method: 'POST' })
       if (res.ok) {
-        if (id === 'google' || id === 'google-ads' || id === 'gsc') setActivePicker(null)
+        if (id === 'google' || id === 'google-ads' || id === 'gsc' || id === 'gbp') setActivePicker(null)
         await fetchStatus()
         setToast({ type: 'success', message: `${id.charAt(0).toUpperCase() + id.slice(1).replace('-', ' ')} disconnected.` })
       }
@@ -395,6 +441,22 @@ function ConnectPageInner() {
       if (res.ok) { await fetchStatus(); setActivePicker(null); setToast({ type: 'success', message: 'Search Console site saved.' }) }
       else { setGscSaveError(data.error ?? 'Failed to save.') }
     } finally { setGscSaveLoading(false) }
+  }
+
+  async function handleSaveGbp() {
+    setGbpSaveError('')
+    if (!selectedGbp) { setGbpSaveError('Please select a location.'); return }
+    setGbpSaveLoading(true)
+    const loc = gbpLocations.find(l => l.id === selectedGbp)
+    try {
+      const res = await fetch('/api/integrations/google/gbp-location', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locationId: selectedGbp, locationName: loc?.name || selectedGbp }),
+      })
+      const data = await res.json()
+      if (res.ok) { await fetchStatus(); setActivePicker(null); setToast({ type: 'success', message: 'Google Business location saved.' }) }
+      else { setGbpSaveError(data.error ?? 'Failed to save.') }
+    } finally { setGbpSaveLoading(false) }
   }
 
   async function handleSaveAds() {
@@ -488,6 +550,10 @@ function ConnectPageInner() {
       if (!status.google) return 'not-connected'
       return status.gscSiteUrl ? 'connected' : 'partial'
     }
+    if (id === 'gbp') {
+      if (!status.google) return 'not-connected'
+      return status.gbpLocationId ? 'connected' : 'partial'
+    }
     if (id === 'wordpress') return status.wordpress ? 'connected' : 'not-connected'
     if (id === 'meta') {
       if (!status.meta) return 'not-connected'
@@ -574,6 +640,41 @@ function ConnectPageInner() {
     )
   }
 
+  function renderGbpPicker() {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">Select your Google Business location</p>
+        {gbpPickerLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading locations…
+          </div>
+        ) : gbpPickerError ? (
+          <p className="text-sm text-red-600 dark:text-red-400 mb-3">{gbpPickerError}</p>
+        ) : gbpLocations.length === 0 ? (
+          <p className="text-sm text-gray-500 mb-3">No verified locations found in your Google Business Profile.</p>
+        ) : (
+          <select
+            value={selectedGbp}
+            onChange={(e) => setSelectedGbp(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">— select a location —</option>
+            {gbpLocations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name} {l.address ? `(${l.address})` : ''}</option>
+            ))}
+          </select>
+        )}
+        {gbpSaveError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{gbpSaveError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={handleSaveGbp} disabled={gbpSaveLoading || gbpPickerLoading || gbpLocations.length === 0} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+            {gbpSaveLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}Save
+          </Button>
+          <Button variant="outline" onClick={() => setActivePicker(null)} className="shrink-0">Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
   function renderAdsPicker() {
     return (
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -603,6 +704,7 @@ function ConnectPageInner() {
     if (id === 'google' && activePicker === 'ga4') return renderGa4Picker()
     if (id === 'google-ads' && activePicker === 'ads') return renderAdsPicker()
     if (id === 'gsc' && activePicker === 'gsc') return renderGscPicker()
+    if (id === 'gbp' && activePicker === 'gbp') return renderGbpPicker()
     return null
   }
 
@@ -714,7 +816,7 @@ function ConnectPageInner() {
           const isAvailable = integration.phase === 2
           const showWpForm = integration.id === 'wordpress' && wpFormOpen && !connected
           const pickerPanel = getPickerForCard(integration.id)
-          const isGoogleService = integration.id === 'google' || integration.id === 'google-ads' || integration.id === 'gsc'
+          const isGoogleService = integration.id === 'google' || integration.id === 'google-ads' || integration.id === 'gsc' || integration.id === 'gbp'
 
           return (
             <Card key={integration.id} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800 flex flex-col">

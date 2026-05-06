@@ -46,6 +46,7 @@ export interface ReportData {
     linkedin?: Record<string, unknown> | null
     ga4?: Record<string, unknown> | null
     gsc?: Record<string, unknown> | null
+    gbp?: Record<string, unknown> | null
     wordpress?: Record<string, unknown> | null
   }
 }
@@ -88,7 +89,7 @@ export async function generateReport(
   const prev = prevRange(startDate, endDate)
   const headers = { Cookie: authCookie }
 
-  const paidPlatforms = ['ga4', 'ads', 'meta', 'tiktok', 'linkedin', 'gsc']
+  const paidPlatforms = ['ga4', 'ads', 'meta', 'tiktok', 'linkedin', 'gsc', 'gbp']
   const qs = (s: string, e: string) => `?startDate=${s}&endDate=${e}`
 
   // Fetch current + previous period for paid/organic platforms; wordpress current only
@@ -112,10 +113,10 @@ export async function generateReport(
       .catch(() => null),
   ])
 
-  const [ga4, ads, meta, tiktok, linkedin, gsc] = currentResults.map((r) =>
+  const [ga4, ads, meta, tiktok, linkedin, gsc, gbp] = currentResults.map((r) =>
     r.status === 'fulfilled' ? r.value : null
   )
-  const [pGa4, pAds, pMeta, pTiktok, pLinkedin, pGsc] = prevResults.map((r) =>
+  const [pGa4, pAds, pMeta, pTiktok, pLinkedin, pGsc, pGbp] = prevResults.map((r) =>
     r.status === 'fulfilled' ? r.value : null
   )
   const wordpress = wpResult
@@ -205,6 +206,8 @@ export async function generateReport(
   const organicClicks = ga4?.overview?.sessions ?? 0
   const organicKeywordClicks = gsc?.overview?.clicks ?? 0
   const prevOrganicKeywordClicks = pGsc?.overview?.clicks ?? 0
+  const gbpViews = gbp?.overview?.totalViews ?? 0
+  const prevGbpViews = pGbp?.overview?.totalViews ?? 0
 
   const momComparisons: MoMMetric[] = [
     {
@@ -233,6 +236,13 @@ export async function generateReport(
       current: organicKeywordClicks,
       previous: prevOrganicKeywordClicks,
       delta: pctDelta(organicKeywordClicks, prevOrganicKeywordClicks),
+      format: 'number',
+    },
+    {
+      label: 'Local Profile Views',
+      current: gbpViews,
+      previous: prevGbpViews,
+      delta: pctDelta(gbpViews, prevGbpViews),
       format: 'number',
     },
   ]
@@ -319,6 +329,7 @@ Write a 3-4 sentence executive summary for the client. Be specific about the num
       linkedin,
       ga4,
       gsc,
+      gbp,
       wordpress,
     },
   }

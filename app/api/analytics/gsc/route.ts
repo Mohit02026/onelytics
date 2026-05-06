@@ -2,36 +2,16 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { encrypt, decrypt } from '@/lib/encryption'
 import { getGscReport, DUMMY_TOKEN } from '@/services/google/gsc'
-import { refreshAccessToken } from '@/services/google/auth'
+import { resolveGoogleToken } from '@/services/google/auth'
 import { z } from 'zod'
 
 const schema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  compareStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  compareEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 })
 
-async function resolveAccessToken(
-  workspaceId: string,
-  account: { accessToken: string; refreshToken: string | null; expiresAt: Date | null }
-): Promise<string> {
-  const decrypted = decrypt(account.accessToken)
-  if (decrypted === DUMMY_TOKEN) return DUMMY_TOKEN
-
-  const expiresAt = account.expiresAt?.getTime() ?? 0
-  if (Date.now() < expiresAt - 5 * 60 * 1000) return decrypted
-
-  if (!account.refreshToken) throw new Error('No refresh token available')
-  const refreshed = await refreshAccessToken(decrypt(account.refreshToken))
-
-  await prisma.connectedAccount.update({
-    where: { workspaceId_provider: { workspaceId, provider: 'google' } },
-    data: {
-      accessToken: encrypt(refreshed.accessToken),
-      expiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
-    },
-  })
-  return refreshed.accessToken
-}
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -41,11 +21,13 @@ export async function GET(req: Request) {
   const parsed = schema.safeParse({
     startDate: searchParams.get('startDate'),
     endDate: searchParams.get('endDate'),
+    compareStartDate: searchParams.get('compareStartDate'),
+    compareEndDate: searchParams.get('compareEndDate'),
   })
   if (!parsed.success) return Response.json({ error: parsed.error }, { status: 400 })
 
   const workspaceId = session.user.workspaceId
-  const { startDate, endDate } = parsed.data
+  const { startDate, endDate, compareStartDate, compareEndDate } = parsed.data
 
   const account = await prisma.connectedAccount.findUnique({
     where: { workspaceId_provider: { workspaceId, provider: 'google' } },
@@ -55,7 +37,7 @@ export async function GET(req: Request) {
   const meta = account.metadata as Record<string, string> | null
   const siteUrl = meta?.gscSiteUrl ?? ''
 
-  const cacheKey = `${startDate}:${endDate}`
+  const cacheKey = `${startDate}:${endDate}:${compareStartDate ?? 'none'}:${compareEndDate ?? 'none'}`
   const cached = await prisma.analyticsCache.findUnique({
     where: {
       workspaceId_provider_dataType_dateRange: {
@@ -67,8 +49,11 @@ export async function GET(req: Request) {
     return Response.json(cached.data)
   }
 
-  const accessToken = await resolveAccessToken(workspaceId, account)
-  const report = await getGscReport(accessToken, siteUrl, startDate, endDate)
+  const accessToken = await resolveGoogleToken(workspaceId, account)
+  const report = await getGscReport(
+    accessToken, siteUrl, startDate, endDate,
+    compareStartDate ?? undefined, compareEndDate ?? undefined
+  )
 
   await prisma.analyticsCache.upsert({
     where: {

@@ -17,6 +17,7 @@ export interface GscKeyword {
   impressions: number
   ctr: number // 0–1
   position: number
+  positionChange?: number // Positive means improved ranking (prev - current)
 }
 
 export interface GscPage {
@@ -57,7 +58,9 @@ export async function getGscReportFromApi(
   accessToken: string,
   siteUrl: string, // e.g. "https://example.com/" or "sc-domain:example.com"
   startDate: string,
-  endDate: string
+  endDate: string,
+  compareStartDate?: string,
+  compareEndDate?: string
 ): Promise<GscReport> {
   const encodedSite = encodeURIComponent(siteUrl)
   const base = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodedSite}/searchAnalytics/query`
@@ -68,7 +71,7 @@ export async function getGscReportFromApi(
 
   const commonBody = { startDate, endDate }
 
-  const [dailyRes, keywordRes, pagesRes, deviceRes, countryRes] = await Promise.all([
+  const [dailyRes, keywordRes, pagesRes, deviceRes, countryRes, prevKeywordRes] = await Promise.all([
     fetch(base, {
       method: 'POST',
       headers,
@@ -109,6 +112,16 @@ export async function getGscReportFromApi(
         orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
       }),
     }),
+    (compareStartDate && compareEndDate) ? fetch(base, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        startDate: compareStartDate,
+        endDate: compareEndDate,
+        dimensions: ['query'],
+        rowLimit: 100, // get a bit more to have a better chance of matching top 25
+      }),
+    }) : Promise.resolve(null),
   ])
 
   if (!dailyRes.ok) {
@@ -128,6 +141,14 @@ export async function getGscReportFromApi(
   const pagesData: { rows?: GscApiRow[] } = pagesRes.ok ? await pagesRes.json() : {}
   const deviceData: { rows?: GscApiRow[] } = deviceRes.ok ? await deviceRes.json() : {}
   const countryData: { rows?: GscApiRow[] } = countryRes.ok ? await countryRes.json() : {}
+  const prevKeywordData: { rows?: GscApiRow[] } = prevKeywordRes && prevKeywordRes.ok ? await prevKeywordRes.json() : {}
+
+  const prevKeywordMap = new Map<string, number>()
+  if (prevKeywordData.rows) {
+    for (const r of prevKeywordData.rows) {
+      prevKeywordMap.set(r.keys[0], r.position)
+    }
+  }
 
   const daily: GscDailyRow[] = (dailyData.rows ?? []).map((r) => ({
     date: r.keys[0],
@@ -135,13 +156,23 @@ export async function getGscReportFromApi(
     impressions: r.impressions,
   }))
 
-  const keywords: GscKeyword[] = (keywordData.rows ?? []).map((r) => ({
-    query: r.keys[0],
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: r.ctr,
-    position: r.position,
-  }))
+  const keywords: GscKeyword[] = (keywordData.rows ?? []).map((r) => {
+    const query = r.keys[0]
+    const currentPos = r.position
+    let positionChange = undefined
+    if (prevKeywordMap.has(query)) {
+      const prevPos = prevKeywordMap.get(query)!
+      positionChange = Math.round((prevPos - currentPos) * 10) / 10
+    }
+    return {
+      query,
+      clicks: r.clicks,
+      impressions: r.impressions,
+      ctr: r.ctr,
+      position: currentPos,
+      positionChange,
+    }
+  })
 
   const topPages: GscPage[] = (pagesData.rows ?? []).map((r) => ({
     page: r.keys[0],
@@ -185,7 +216,12 @@ function seeded(n: number) {
   return x - Math.floor(x)
 }
 
-export function getGscReportDummy(startDate: string, endDate: string): GscReport {
+export function getGscReportDummy(
+  startDate: string,
+  endDate: string,
+  compareStartDate?: string,
+  compareEndDate?: string
+): GscReport {
   const start = new Date(startDate)
   const end = new Date(endDate)
   const daily: GscDailyRow[] = []
@@ -204,16 +240,16 @@ export function getGscReportDummy(startDate: string, endDate: string): GscReport
   const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
 
   const keywords: GscKeyword[] = [
-    { query: 'onelytics dashboard', clicks: Math.floor(totalClicks * 0.18), impressions: Math.floor(totalImpressions * 0.12), ctr: 0.148, position: 2.3 },
-    { query: 'marketing analytics tool', clicks: Math.floor(totalClicks * 0.14), impressions: Math.floor(totalImpressions * 0.15), ctr: 0.091, position: 4.1 },
-    { query: 'google ads dashboard', clicks: Math.floor(totalClicks * 0.11), impressions: Math.floor(totalImpressions * 0.14), ctr: 0.078, position: 5.7 },
-    { query: 'unified analytics platform', clicks: Math.floor(totalClicks * 0.09), impressions: Math.floor(totalImpressions * 0.10), ctr: 0.088, position: 3.9 },
-    { query: 'search console analytics', clicks: Math.floor(totalClicks * 0.08), impressions: Math.floor(totalImpressions * 0.09), ctr: 0.084, position: 6.2 },
-    { query: 'meta ads reporting', clicks: Math.floor(totalClicks * 0.07), impressions: Math.floor(totalImpressions * 0.08), ctr: 0.081, position: 7.8 },
-    { query: 'ga4 reporting tool', clicks: Math.floor(totalClicks * 0.06), impressions: Math.floor(totalImpressions * 0.07), ctr: 0.076, position: 8.4 },
-    { query: 'all in one marketing analytics', clicks: Math.floor(totalClicks * 0.05), impressions: Math.floor(totalImpressions * 0.06), ctr: 0.073, position: 9.1 },
-    { query: 'roas tracker', clicks: Math.floor(totalClicks * 0.04), impressions: Math.floor(totalImpressions * 0.05), ctr: 0.069, position: 10.3 },
-    { query: 'ad spend tracker', clicks: Math.floor(totalClicks * 0.04), impressions: Math.floor(totalImpressions * 0.05), ctr: 0.065, position: 11.7 },
+    { query: 'onelytics dashboard', clicks: Math.floor(totalClicks * 0.18), impressions: Math.floor(totalImpressions * 0.12), ctr: 0.148, position: 2.3, positionChange: compareStartDate ? 1.2 : undefined },
+    { query: 'marketing analytics tool', clicks: Math.floor(totalClicks * 0.14), impressions: Math.floor(totalImpressions * 0.15), ctr: 0.091, position: 4.1, positionChange: compareStartDate ? -0.4 : undefined },
+    { query: 'google ads dashboard', clicks: Math.floor(totalClicks * 0.11), impressions: Math.floor(totalImpressions * 0.14), ctr: 0.078, position: 5.7, positionChange: compareStartDate ? 0.8 : undefined },
+    { query: 'unified analytics platform', clicks: Math.floor(totalClicks * 0.09), impressions: Math.floor(totalImpressions * 0.10), ctr: 0.088, position: 3.9, positionChange: compareStartDate ? 0.0 : undefined },
+    { query: 'search console analytics', clicks: Math.floor(totalClicks * 0.08), impressions: Math.floor(totalImpressions * 0.09), ctr: 0.084, position: 6.2, positionChange: compareStartDate ? -1.1 : undefined },
+    { query: 'meta ads reporting', clicks: Math.floor(totalClicks * 0.07), impressions: Math.floor(totalImpressions * 0.08), ctr: 0.081, position: 7.8, positionChange: compareStartDate ? 2.5 : undefined },
+    { query: 'ga4 reporting tool', clicks: Math.floor(totalClicks * 0.06), impressions: Math.floor(totalImpressions * 0.07), ctr: 0.076, position: 8.4, positionChange: compareStartDate ? 0.2 : undefined },
+    { query: 'all in one marketing analytics', clicks: Math.floor(totalClicks * 0.05), impressions: Math.floor(totalImpressions * 0.06), ctr: 0.073, position: 9.1, positionChange: compareStartDate ? -2.0 : undefined },
+    { query: 'roas tracker', clicks: Math.floor(totalClicks * 0.04), impressions: Math.floor(totalImpressions * 0.05), ctr: 0.069, position: 10.3, positionChange: compareStartDate ? 3.1 : undefined },
+    { query: 'ad spend tracker', clicks: Math.floor(totalClicks * 0.04), impressions: Math.floor(totalImpressions * 0.05), ctr: 0.065, position: 11.7, positionChange: compareStartDate ? 0.5 : undefined },
   ]
 
   const topPages: GscPage[] = [
@@ -270,8 +306,10 @@ export async function getGscReport(
   accessToken: string,
   siteUrl: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  compareStartDate?: string,
+  compareEndDate?: string
 ): Promise<GscReport> {
-  if (accessToken === DUMMY_TOKEN) return getGscReportDummy(startDate, endDate)
-  return getGscReportFromApi(accessToken, siteUrl, startDate, endDate)
+  if (accessToken === DUMMY_TOKEN) return getGscReportDummy(startDate, endDate, compareStartDate, compareEndDate)
+  return getGscReportFromApi(accessToken, siteUrl, startDate, endDate, compareStartDate, compareEndDate)
 }

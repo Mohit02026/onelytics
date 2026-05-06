@@ -39,10 +39,6 @@ next-env.d.ts
 /lib/generated/prisma
 
 #md
-GEMINI.md
-SESSION.md
-AGENTS.md
-READMEPHASE1.md
-ISSUES.md
-IMPROVEMENTS.md
+*.md
+!README.md
 .agent/

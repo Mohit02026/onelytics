@@ -1,7 +1,12 @@
+import { prisma } from '@/lib/db'
+import { encrypt, decrypt } from '@/lib/encryption'
+import { DUMMY_TOKEN } from '@/services/google/ga4'
+
 const SCOPES = [
   'https://www.googleapis.com/auth/analytics.readonly',
   'https://www.googleapis.com/auth/webmasters.readonly',
   'https://www.googleapis.com/auth/adwords',
+  'https://www.googleapis.com/auth/business.manage',
 ].join(' ')
 
 export function buildGoogleOAuthUrl(state: string): string {
@@ -72,4 +77,38 @@ export async function refreshAccessToken(
 
   const data = await res.json()
   return { accessToken: data.access_token, expiresIn: data.expires_in }
+}
+
+// Returns a valid (non-expired) access token, refreshing if needed.
+export async function resolveGoogleToken(
+  workspaceId: string,
+  account: {
+    accessToken: string
+    refreshToken: string | null
+    expiresAt: Date | null
+  }
+): Promise<string> {
+  const decrypted = decrypt(account.accessToken)
+
+  // Dummy tokens don't expire
+  if (decrypted === DUMMY_TOKEN) return DUMMY_TOKEN
+
+  // Refresh if token expires within the next 5 minutes
+  const expiresAt = account.expiresAt?.getTime() ?? 0
+  if (Date.now() < expiresAt - 5 * 60 * 1000) return decrypted
+
+  if (!account.refreshToken) throw new Error('No refresh token available')
+
+  const decryptedRefresh = decrypt(account.refreshToken)
+  const refreshed = await refreshAccessToken(decryptedRefresh)
+
+  await prisma.connectedAccount.update({
+    where: { workspaceId_provider: { workspaceId, provider: 'google' } },
+    data: {
+      accessToken: encrypt(refreshed.accessToken),
+      expiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
+    },
+  })
+
+  return refreshed.accessToken
 }

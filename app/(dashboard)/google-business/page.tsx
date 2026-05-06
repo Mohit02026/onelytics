@@ -2,40 +2,28 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-range-picker'
-import { GscOverviewCards } from '@/components/analytics/gsc-overview-cards'
-import { GscClicksChart } from '@/components/analytics/gsc-clicks-chart'
-import { GscKeywordsTable } from '@/components/analytics/gsc-keywords-table'
-import { GscTopPagesTable, GscDeviceCountryBreakdown } from '@/components/analytics/gsc-breakdowns'
+import { GbpOverviewCards } from '@/components/analytics/gbp-overview-cards'
+import { GbpCallsChart } from '@/components/analytics/gbp-calls-chart'
+import { GbpViewsChart } from '@/components/analytics/gbp-views-chart'
 import { Button } from '@/components/ui/button'
-import { Search, RefreshCw, AlertCircle } from 'lucide-react'
+import { Building2, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
-import type { GscReport } from '@/services/google/gsc'
+import type { GbpReport } from '@/services/google/gbp'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
 
-export default function SearchConsolePage() {
+export default function GoogleBusinessPage() {
   const [status, setStatus] = useState<Status>('loading')
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
-  const [report, setReport] = useState<GscReport | null>(null)
+  const [report, setReport] = useState<GbpReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
     try {
-      const start = new Date(range.startDate)
-      const end = new Date(range.endDate)
-      const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-      const prevEnd = new Date(start)
-      prevEnd.setDate(prevEnd.getDate() - 1)
-      const prevStart = new Date(prevEnd)
-      prevStart.setDate(prevStart.getDate() - days + 1)
-      const fmt = (d: Date) => d.toISOString().split('T')[0]
-      const compareStart = fmt(prevStart)
-      const compareEnd = fmt(prevEnd)
-
       const res = await fetch(
-        `/api/analytics/gsc?startDate=${range.startDate}&endDate=${range.endDate}&compareStartDate=${compareStart}&compareEndDate=${compareEnd}`
+        `/api/analytics/gbp?startDate=${range.startDate}&endDate=${range.endDate}`
       )
       if (res.status === 404) { setStatus('not-connected'); return }
       if (!res.ok) throw new Error('Failed to fetch')
@@ -50,19 +38,19 @@ export default function SearchConsolePage() {
 
   useEffect(() => { fetchReport(dateRange) }, [dateRange, fetchReport])
 
-  if (status === 'loading') return <GscSkeleton />
+  if (status === 'loading') return <GbpSkeleton />
 
   if (status === 'not-connected') {
     return (
       <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/50 rounded-2xl flex items-center justify-center mb-6">
-          <Search className="w-7 h-7 text-purple-600 dark:text-purple-400" />
+        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/50 rounded-2xl flex items-center justify-center mb-6">
+          <Building2 className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-          Search Console not connected
+          Google Business not connected
         </h2>
         <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm">
-          Connect your Google account and add your Search Console site URL to see organic search data.
+          Connect your Google account and select your location to see business profile data.
         </p>
         <Button render={<Link href="/connect" />} className="bg-blue-600 hover:bg-blue-700 text-white">
           Go to Connect
@@ -75,7 +63,7 @@ export default function SearchConsolePage() {
     return (
       <div className="flex items-center gap-3 text-red-600 dark:text-red-400 p-6">
         <AlertCircle className="w-5 h-5" />
-        <span>Failed to load Search Console data.</span>
+        <span>Failed to load Google Business Profile data.</span>
         <Button variant="outline" size="sm" onClick={() => fetchReport(dateRange)}>Retry</Button>
       </div>
     )
@@ -85,8 +73,8 @@ export default function SearchConsolePage() {
     <div className="max-w-6xl mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Search Console</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Organic search performance, keywords, and rankings</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Google Business</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Local search performance, views, and interactions</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
@@ -96,26 +84,19 @@ export default function SearchConsolePage() {
         </div>
       </div>
 
-      {report && <GscOverviewCards data={report.overview} />}
+      {report && <GbpOverviewCards data={report.overview} />}
 
       {report && (
-        <div className="space-y-6">
-          <GscClicksChart data={report.daily} />
-          <GscKeywordsTable keywords={report.keywords} />
-          {report.topPages?.length > 0 && <GscTopPagesTable pages={report.topPages} />}
-          {(report.devices?.length > 0 || report.countries?.length > 0) && (
-            <GscDeviceCountryBreakdown
-              devices={report.devices ?? []}
-              countries={report.countries ?? []}
-            />
-          )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <GbpViewsChart data={report.daily} />
+          <GbpCallsChart data={report.daily} />
         </div>
       )}
     </div>
   )
 }
 
-function GscSkeleton() {
+function GbpSkeleton() {
   return (
     <div className="max-w-6xl mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -125,13 +106,15 @@ function GscSkeleton() {
         </div>
         <div className="h-9 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, i) => (
           <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
         ))}
       </div>
-      <div className="h-72 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
-      <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="h-72 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
+        <div className="h-72 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
+      </div>
     </div>
   )
 }
