@@ -99,12 +99,14 @@ export default function ReportDetailPage() {
             Generated {new Date(report.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <a href={`/api/reports/${report.id}/download`} download>
-          <Button variant="outline" className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Download PDF
-          </Button>
-        </a>
+        <Button
+          variant="outline"
+          className="flex items-center gap-2"
+          onClick={() => { window.location.href = `/api/reports/${report.id}/download` }}
+        >
+          <Download className="w-4 h-4" />
+          Download PDF
+        </Button>
       </div>
 
       {/* Executive Summary */}
