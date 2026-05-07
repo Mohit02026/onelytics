@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { decrypt } from '@/lib/encryption'
 import { z } from 'zod'
 
-const GRAPH_VERSION = 'v19.0'
+const GRAPH_VERSION = 'v22.0'
 
 export async function GET() {
   const session = await auth()
@@ -64,6 +64,10 @@ export async function POST(req: Request) {
   await prisma.connectedAccount.update({
     where: { workspaceId_provider: { workspaceId, provider: 'meta' } },
     data: { propertyId: parsed.data.adAccountId },
+  })
+
+  await prisma.analyticsCache.deleteMany({
+    where: { workspaceId, provider: 'meta' },
   })
 
   return Response.json({ success: true })

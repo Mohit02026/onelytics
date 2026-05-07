@@ -92,7 +92,7 @@ export async function GET(req: Request) {
   const hasGbp = !!gscMeta?.gbpLocationId
 
   const reqUrl = new URL(req.url)
-  const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`
+  const baseUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, '') ?? `${reqUrl.protocol}//${reqUrl.host}`
   const cookie = req.headers.get('cookie') ?? ''
   
   const qs = `?startDate=${startDate}&endDate=${endDate}`

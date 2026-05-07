@@ -75,5 +75,9 @@ export async function POST(req: Request) {
     data: { metadata: { ...existing, googleAdsCustomerId: normalized } },
   })
 
+  await prisma.analyticsCache.deleteMany({
+    where: { workspaceId, provider: 'google-ads' },
+  })
+
   return Response.json({ success: true })
 }
