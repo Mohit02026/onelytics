@@ -36,6 +36,7 @@ export default auth(async (req) => {
   const isPublic =
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/invite/') ||
+    pathname === '/api/health' ||
     pathname === '/login' ||
     pathname === '/register'
 
