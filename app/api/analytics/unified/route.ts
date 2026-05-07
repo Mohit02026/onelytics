@@ -1,6 +1,5 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import type { ConnectedAccount } from '@prisma/client'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -85,9 +84,9 @@ export async function GET(req: Request) {
   const { startDate, endDate } = parsed.data
 
   const accounts = await prisma.connectedAccount.findMany({ where: { workspaceId } })
-  const googleAccount = accounts.find((a: ConnectedAccount) => a.provider === 'google')
-  const metaAccount = accounts.find((a: ConnectedAccount) => a.provider === 'meta')
-  const wpAccount = accounts.find((a: ConnectedAccount) => a.provider === 'wordpress')
+  const googleAccount = accounts.find((a: { provider: string }) => a.provider === 'google')
+  const metaAccount = accounts.find((a: { provider: string }) => a.provider === 'meta')
+  const wpAccount = accounts.find((a: { provider: string }) => a.provider === 'wordpress')
   const gscMeta = googleAccount?.metadata as Record<string, string> | null
   const hasGsc = !!gscMeta?.gscSiteUrl
   const hasGbp = !!gscMeta?.gbpLocationId
