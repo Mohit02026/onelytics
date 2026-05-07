@@ -14,24 +14,40 @@ const ratelimit = process.env.UPSTASH_REDIS_REST_URL
   : null;
 
 export default auth(async (req) => {
+  const session = req.auth
+  const { pathname } = req.nextUrl
+
   // Rate limit API routes
-  if (req.nextUrl.pathname.startsWith('/api') && ratelimit) {
-    const ip = req.ip ?? '127.0.0.1';
-    const { success, limit, reset, remaining } = await ratelimit.limit(ip);
-    
+  if (pathname.startsWith('/api') && ratelimit) {
+    const ip = req.ip ?? '127.0.0.1'
+    const { success, limit, reset, remaining } = await ratelimit.limit(ip)
     if (!success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, {
         status: 429,
         headers: {
           'X-RateLimit-Limit': limit.toString(),
           'X-RateLimit-Remaining': remaining.toString(),
-          'X-RateLimit-Reset': reset.toString()
-        }
-      });
+          'X-RateLimit-Reset': reset.toString(),
+        },
+      })
     }
   }
-  
-  return NextResponse.next();
+
+  const isPublic =
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/invite/') ||
+    pathname === '/login' ||
+    pathname === '/register'
+
+  if (!isPublic && !session) {
+    return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  if ((pathname === '/login' || pathname === '/register') && session) {
+    return NextResponse.redirect(new URL('/', req.url))
+  }
+
+  return NextResponse.next()
 });
 
 export const config = {
