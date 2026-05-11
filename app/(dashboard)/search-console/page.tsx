@@ -19,6 +19,7 @@ export default function SearchConsolePage() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [report, setReport] = useState<GscReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [volumes, setVolumes] = useState<Record<string, number> | undefined>(undefined)
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -39,8 +40,18 @@ export default function SearchConsolePage() {
       )
       if (res.status === 404) { setStatus('not-connected'); return }
       if (!res.ok) throw new Error('Failed to fetch')
-      setReport(await res.json())
+      const data: GscReport = await res.json()
+      setReport(data)
       setStatus('loaded')
+
+      // Fetch keyword volumes non-blocking (requires Google Ads customer ID)
+      if (data.keywords?.length > 0) {
+        const kwParam = data.keywords.map((k) => k.query).join(',')
+        fetch(`/api/analytics/keyword-volume?keywords=${encodeURIComponent(kwParam)}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((v) => { if (v && typeof v === 'object' && !('error' in v)) setVolumes(v) })
+          .catch(() => undefined)
+      }
     } catch {
       setStatus('error')
     } finally {
@@ -101,7 +112,7 @@ export default function SearchConsolePage() {
       {report && (
         <div className="space-y-6">
           <GscClicksChart data={report.daily} />
-          <GscKeywordsTable keywords={report.keywords} />
+          <GscKeywordsTable keywords={report.keywords} volumes={volumes} />
           {report.topPages?.length > 0 && <GscTopPagesTable pages={report.topPages} />}
           {(report.devices?.length > 0 || report.countries?.length > 0) && (
             <GscDeviceCountryBreakdown

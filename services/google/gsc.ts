@@ -18,6 +18,7 @@ export interface GscKeyword {
   ctr: number // 0–1
   position: number
   positionChange?: number // Positive means improved ranking (prev - current)
+  volume?: number // Avg monthly search volume from Keyword Planner
 }
 
 export interface GscPage {

@@ -32,11 +32,39 @@ export async function GET() {
 
     const data = await res.json()
     const resourceNames: string[] = data.resourceNames ?? []
-    const customers = resourceNames.map((name) => {
-      const id = name.replace('customers/', '')
-      const formatted = id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
-      return { id, formatted }
-    })
+    const ids = resourceNames.map((name) => name.replace('customers/', ''))
+
+    // Fetch account names in parallel via GAQL (one call per customer)
+    const nameResults = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`https://googleads.googleapis.com/v24/customers/${id}/googleAds:searchStream`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'developer-token': devToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1' }),
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((chunks: { results?: { customer: { id: string; descriptive_name: string } }[] }[] | null) => {
+            const row = chunks?.[0]?.results?.[0]?.customer
+            return row ? { id: String(row.id), name: row.descriptive_name } : null
+          })
+          .catch(() => null)
+      )
+    )
+
+    const nameMap: Record<string, string> = {}
+    for (const r of nameResults) {
+      if (r.status === 'fulfilled' && r.value) nameMap[r.value.id] = r.value.name
+    }
+
+    const customers = ids.map((id) => ({
+      id,
+      formatted: id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3'),
+      name: nameMap[id] ?? null,
+    }))
 
     return Response.json(customers)
   } catch (e: unknown) {

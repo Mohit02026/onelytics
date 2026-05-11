@@ -5,6 +5,7 @@ import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-r
 import { AdsOverviewCards } from '@/components/analytics/ads-overview-cards'
 import { AdsSpendChart } from '@/components/analytics/ads-spend-chart'
 import { AdsCampaignsTable } from '@/components/analytics/ads-campaigns-table'
+import { AdsKeywordsTable } from '@/components/analytics/ads-keywords-table'
 import { Button } from '@/components/ui/button'
 import { Activity, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import Link from 'next/link'
@@ -12,6 +13,7 @@ import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { AdsReport } from '@/services/google/ads'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
+type Tab = 'campaigns' | 'keywords'
 
 export default function GoogleAdsPage() {
   const [status, setStatus] = useState<Status>('loading')
@@ -19,6 +21,8 @@ export default function GoogleAdsPage() {
   const [report, setReport] = useState<AdsReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<Tab>('campaigns')
+  const [volumes, setVolumes] = useState<Record<string, number> | undefined>(undefined)
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -29,11 +33,22 @@ export default function GoogleAdsPage() {
       if (res.status === 404) { setStatus('not-connected'); return }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setErrorMsg(data.error ?? `HTTP ${res.status}`)
-        throw new Error(data.error ?? 'Failed to fetch')
+        setErrorMsg((data as { error?: string }).error ?? `HTTP ${res.status}`)
+        setStatus('error')
+        return
       }
-      setReport(await res.json())
+      const data: AdsReport = await res.json()
+      setReport(data)
       setStatus('loaded')
+      setVolumes(undefined)
+      // Fire-and-forget keyword volume fetch
+      if (data.keywords && data.keywords.length > 0) {
+        const kwList = data.keywords.map((k) => k.keyword).join(',')
+        fetch(`/api/analytics/keyword-volume?keywords=${encodeURIComponent(kwList)}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((v) => { if (v) setVolumes(v) })
+          .catch(() => undefined)
+      }
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Unknown error')
       setStatus('error')
@@ -105,7 +120,28 @@ export default function GoogleAdsPage() {
       {report && (
         <div className="space-y-6">
           <AdsSpendChart data={report.daily} />
-          <AdsCampaignsTable campaigns={report.campaigns} />
+
+          {/* Campaigns / Keywords tabs */}
+          <div>
+            <div className="flex gap-0 border-b border-gray-200 dark:border-gray-800 mb-4">
+              {(['campaigns', 'keywords'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+                    activeTab === tab
+                      ? 'text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400'
+                      : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'campaigns' && <AdsCampaignsTable campaigns={report.campaigns} />}
+            {activeTab === 'keywords' && <AdsKeywordsTable keywords={report.keywords ?? []} volumes={volumes} />}
+          </div>
         </div>
       )}
     </div>

@@ -168,7 +168,7 @@ function ConnectPageInner() {
   const [gbpSaveError, setGbpSaveError] = useState('')
 
   // Ads picker
-  const [adsCustomers, setAdsCustomers] = useState<{ id: string; formatted: string }[]>([])
+  const [adsCustomers, setAdsCustomers] = useState<{ id: string; formatted: string; name: string | null }[]>([])
   const [adsCustomerListLoading, setAdsCustomerListLoading] = useState(false)
   const [adsCustomerInput, setAdsCustomerInput] = useState('')
   const [adsCustomerLoading, setAdsCustomerLoading] = useState(false)
@@ -411,8 +411,16 @@ function ConnectPageInner() {
   }
 
   async function handleDisconnect(id: string) {
+    // Google sub-services each have their own scoped disconnect
+    const googleServiceParam: Record<string, string> = {
+      'google': '',       // no param = disconnect all Google
+      'google-ads': '?service=ads',
+      'gsc': '?service=gsc',
+      'gbp': '?service=gbp',
+    }
+
     const endpoint =
-      id === 'google' || id === 'google-ads' || id === 'gsc' || id === 'gbp' ? '/api/integrations/google/disconnect' :
+      id in googleServiceParam ? `/api/integrations/google/disconnect${googleServiceParam[id]}` :
       id === 'wordpress' ? '/api/integrations/wordpress/disconnect' :
       id === 'meta' ? '/api/integrations/meta/disconnect' :
       id === 'tiktok' ? '/api/integrations/tiktok/disconnect' :
@@ -423,9 +431,10 @@ function ConnectPageInner() {
     try {
       const res = await fetch(endpoint, { method: 'POST' })
       if (res.ok) {
-        if (id === 'google' || id === 'google-ads' || id === 'gsc' || id === 'gbp') setActivePicker(null)
+        if (id in googleServiceParam) setActivePicker(null)
         await fetchStatus()
-        setToast({ type: 'success', message: `${id.charAt(0).toUpperCase() + id.slice(1).replace('-', ' ')} disconnected.` })
+        const label = id === 'google-ads' ? 'Google Ads' : id === 'gsc' ? 'Search Console' : id === 'gbp' ? 'Google Business' : id.charAt(0).toUpperCase() + id.slice(1)
+        setToast({ type: 'success', message: `${label} disconnected.` })
       }
     } finally {
       setActionLoading(null)
@@ -712,7 +721,7 @@ function ConnectPageInner() {
             >
               <option value="">— select an account —</option>
               {adsCustomers.map((c) => (
-                <option key={c.id} value={c.id}>{c.formatted}</option>
+                <option key={c.id} value={c.id}>{c.name ? `${c.name} (${c.formatted})` : c.formatted}</option>
               ))}
             </select>
           </>
