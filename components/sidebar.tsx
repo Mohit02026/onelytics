@@ -16,10 +16,15 @@ import {
   Briefcase,
   FileText,
   Building2,
+  Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
+
+const topItems = [
+  { name: 'Agency Overview', href: '/agency', icon: Network },
+]
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -70,8 +75,27 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="flex-1 py-4 px-3 flex flex-col gap-0.5 overflow-y-auto">
+        {/* Agency */}
+        {topItems.map((item) => {
+          const isActive = pathname.startsWith(item.href)
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors mb-2',
+                isActive
+                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-500'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+              )}
+            >
+              <item.icon className="w-4 h-4" />
+              {item.name}
+            </Link>
+          )
+        })}
         <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-          Menu
+          Workspace
         </div>
         {navItems.map((item) => {
           const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)

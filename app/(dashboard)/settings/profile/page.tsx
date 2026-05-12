@@ -42,8 +42,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetch('/api/user/profile')
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error('Failed'); return r.json() })
       .then((d) => setProfile(d))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
