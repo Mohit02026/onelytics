@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { notifyWorkspace } from '@/lib/notify'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -61,5 +62,7 @@ export async function POST(req: Request) {
     })
   }
 
+  const label = service ? `google:${service}` : 'google'
+  notifyWorkspace(workspaceId, { type: 'integration_disconnected', provider: label })
   return Response.json({ success: true })
 }

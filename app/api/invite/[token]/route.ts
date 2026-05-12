@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { notifyWorkspace } from '@/lib/notify'
 
 export async function GET(_req: Request, { params }: { params: { token: string } }) {
   const invite = await prisma.workspaceInvite.findUnique({
@@ -44,10 +45,11 @@ export async function POST(_req: Request, { params }: { params: { token: string 
     await prisma.workspaceMember.create({
       data: { workspaceId, userId, role: invite.role },
     })
-    // Switch user's active workspace to the new one
-    await prisma.user.update({
-      where: { id: userId },
-      data: { workspaceId },
+    await prisma.user.update({ where: { id: userId }, data: { workspaceId } })
+    notifyWorkspace(workspaceId, {
+      type: 'member_joined',
+      name: session.user.name ?? '',
+      email: session.user.email ?? invite.email,
     })
   }
 

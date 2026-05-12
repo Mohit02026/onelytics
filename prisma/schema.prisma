@@ -88,6 +88,9 @@ model Workspace {
   portalToken     String? @unique
   portalPassword  String?
 
+  // Notifications
+  slackWebhookUrl String? @map("slack_webhook_url")
+
   // Agency link
   organizationId String? @map("organization_id")
   organization   Organization? @relation(fields: [organizationId], references: [id])

@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { generateReport, generateAINarrative } from '@/services/reports/generate'
+import { notifyWorkspace } from '@/lib/notify'
 import { z } from 'zod'
 import { headers } from 'next/headers'
 
@@ -85,12 +86,14 @@ export async function POST(req: Request) {
       })
     }).catch(() => {})
 
+    notifyWorkspace(workspaceId, { type: 'report_ready', title, reportId: report.id })
     return Response.json({ ...report, status: 'READY' })
   } catch (err) {
     await prisma.generatedReport.update({
       where: { id: report.id },
       data: { status: 'FAILED' },
     })
+    notifyWorkspace(workspaceId, { type: 'report_failed', title })
     console.error('Report generation failed:', err)
     return Response.json({ error: 'Report generation failed' }, { status: 500 })
   }

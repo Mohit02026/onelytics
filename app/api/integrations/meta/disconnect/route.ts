@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { notifyWorkspace } from '@/lib/notify'
 
 export async function POST() {
   const session = await auth()
@@ -11,5 +12,6 @@ export async function POST() {
     where: { workspaceId, provider: 'meta' },
   })
 
+  notifyWorkspace(workspaceId, { type: 'integration_disconnected', provider: 'meta' })
   return Response.json({ success: true })
 }

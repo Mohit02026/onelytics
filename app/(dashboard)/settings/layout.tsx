@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Settings, Users, Plug, Globe, ChevronRight, UserCircle } from 'lucide-react'
+import { Settings, Users, Plug, Globe, ChevronRight, UserCircle, Bell } from 'lucide-react'
 
 const NAV = [
   { href: '/settings/profile', label: 'Profile', icon: UserCircle, exact: false },
@@ -10,6 +10,7 @@ const NAV = [
   { href: '/settings/members', label: 'Members & Roles', icon: Users, exact: false },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug, exact: false },
   { href: '/settings/portal', label: 'Client Portal', icon: Globe, exact: false },
+  { href: '/settings/notifications', label: 'Notifications', icon: Bell, exact: false },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
