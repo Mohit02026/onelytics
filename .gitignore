@@ -42,3 +42,5 @@ next-env.d.ts
 *.md
 !README.md
 .agent/
+.claude/
+*.docx
