@@ -99,7 +99,7 @@ export default function AgencyPage() {
   const { org, workspaces } = data
 
   return (
-    <div className="max-w-5xl mx-auto py-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -215,21 +215,25 @@ export default function AgencyPage() {
             )}
 
             {/* Action */}
-            <Button
-              size="sm"
-              variant={ws.isActive ? 'outline' : 'default'}
-              className={ws.isActive ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}
-              onClick={() => ws.isActive ? router.push('/') : enterWorkspace(ws.id)}
-              disabled={switching === ws.id}
-            >
-              {switching === ws.id ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : ws.isActive ? (
-                'View Dashboard'
-              ) : (
-                <>Enter workspace <ArrowRight className="w-3 h-3 ml-1" /></>
-              )}
-            </Button>
+            {ws.isActive ? (
+              <Link href="/">
+                <Button size="sm" variant="outline" className="w-full">
+                  View Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => enterWorkspace(ws.id)}
+                disabled={switching === ws.id}
+              >
+                {switching === ws.id
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <>Enter workspace <ArrowRight className="w-3 h-3 ml-1" /></>
+                }
+              </Button>
+            )}
           </div>
         ))}
 
