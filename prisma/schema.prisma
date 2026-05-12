@@ -19,6 +19,19 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Branding & identity
+  clientLogoUrl      String?
+  clientColor        String?  @default("#2563eb")
+  clientContactName  String?
+  clientContactEmail String?
+  timezone           String?  @default("America/New_York")
+  currency           String?  @default("USD")
+
+  // Client portal
+  portalEnabled   Boolean @default(false)
+  portalToken     String? @unique
+  portalPassword  String?
+
   users             User[]
   connectedAccounts ConnectedAccount[]
   analyticsCache    AnalyticsCache[]
