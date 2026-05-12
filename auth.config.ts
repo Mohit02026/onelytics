@@ -11,9 +11,10 @@ export const authConfig = {
       const isApiAuthRoute = nextUrl.pathname.startsWith('/api/auth');
       const isAuthRoute = nextUrl.pathname === '/login' || nextUrl.pathname === '/register';
       const isInviteRoute = nextUrl.pathname.startsWith('/invite/');
-      
-      if (isApiAuthRoute || isInviteRoute) return true;
-      
+      const isPortalRoute = nextUrl.pathname.startsWith('/portal/');
+
+      if (isApiAuthRoute || isInviteRoute || isPortalRoute) return true;
+
       if (isAuthRoute) {
         if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
         return true;
@@ -24,11 +25,15 @@ export const authConfig = {
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session: sessionData }) {
       if (user) {
         token.id = user.id;
         // @ts-ignore - workspaceId comes from custom user type
         token.workspaceId = user.workspaceId;
+      }
+      // When session.update({ workspaceId }) is called, refresh the token
+      if (trigger === 'update' && sessionData?.workspaceId) {
+        token.workspaceId = sessionData.workspaceId;
       }
       return token;
     },

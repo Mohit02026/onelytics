@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Atomically create Workspace and User
+    // Atomically create Workspace, User, and OWNER membership
     const result = await prisma.$transaction(async (tx) => {
       const workspace = await tx.workspace.create({
         data: {
@@ -42,6 +42,10 @@ export async function POST(req: Request) {
           name,
           workspaceId: workspace.id
         }
+      })
+
+      await tx.workspaceMember.create({
+        data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' }
       })
 
       return { user, workspace }

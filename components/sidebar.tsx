@@ -12,7 +12,6 @@ import {
   Settings,
   Activity,
   Plug,
-  Users,
   Music2,
   Briefcase,
   FileText,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -34,7 +34,6 @@ const navItems = [
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Connect Accounts', href: '/connect', icon: Plug },
   { name: 'Settings', href: '/settings', icon: Settings },
-  { name: 'Members', href: '/settings/members', icon: Users },
 ]
 
 export function Sidebar() {
@@ -50,13 +49,13 @@ export function Sidebar() {
         setConnectedCount(count)
       })
       .catch(() => setConnectedCount(0))
-  }, [pathname]) // re-check after navigation so connect/disconnect reflects immediately
+  }, [pathname])
 
   return (
     <div className="w-[220px] flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-full">
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-2 font-bold text-lg tracking-tight">
+      <div className="h-14 flex items-center px-5 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-center gap-2 font-bold text-base tracking-tight">
           <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center">
             <span className="text-white text-xs">O</span>
           </div>
@@ -64,13 +63,18 @@ export function Sidebar() {
         </div>
       </div>
 
+      {/* Workspace Switcher */}
+      <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800">
+        <WorkspaceSwitcher />
+      </div>
+
       {/* Navigation */}
-      <div className="flex-1 py-6 px-4 flex flex-col gap-1 overflow-y-auto">
-        <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+      <div className="flex-1 py-4 px-3 flex flex-col gap-0.5 overflow-y-auto">
+        <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
           Menu
         </div>
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
           return (
             <Link
               key={item.name}
