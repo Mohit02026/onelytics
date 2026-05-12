@@ -6,6 +6,7 @@ import { GbpOverviewCards } from '@/components/analytics/gbp-overview-cards'
 import { GbpCallsChart } from '@/components/analytics/gbp-calls-chart'
 import { GbpViewsChart } from '@/components/analytics/gbp-views-chart'
 import { Button } from '@/components/ui/button'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Building2, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
@@ -80,6 +81,7 @@ export default function GoogleBusinessPage() {
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <ExportPdfButton platform="gbp" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>

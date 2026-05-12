@@ -7,6 +7,7 @@ import { AdsSpendChart } from '@/components/analytics/ads-spend-chart'
 import { AdsCampaignsTable } from '@/components/analytics/ads-campaigns-table'
 import { AdsKeywordsTable } from '@/components/analytics/ads-keywords-table'
 import { Button } from '@/components/ui/button'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Activity, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
@@ -101,6 +102,7 @@ export default function GoogleAdsPage() {
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <ExportPdfButton platform="googleAds" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>

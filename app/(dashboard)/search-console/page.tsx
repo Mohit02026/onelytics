@@ -7,6 +7,7 @@ import { GscClicksChart } from '@/components/analytics/gsc-clicks-chart'
 import { GscKeywordsTable } from '@/components/analytics/gsc-keywords-table'
 import { GscTopPagesTable, GscDeviceCountryBreakdown } from '@/components/analytics/gsc-breakdowns'
 import { Button } from '@/components/ui/button'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Search, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
@@ -103,6 +104,7 @@ export default function SearchConsolePage() {
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <ExportPdfButton platform="gsc" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>

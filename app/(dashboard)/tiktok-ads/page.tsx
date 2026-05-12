@@ -7,6 +7,7 @@ import { TikTokOverviewCards } from '@/components/analytics/tiktok-overview-card
 import { TikTokSpendChart } from '@/components/analytics/tiktok-spend-chart'
 import { TikTokCampaignsTable } from '@/components/analytics/tiktok-campaigns-table'
 import { DateRangePicker } from '@/components/analytics/date-range-picker'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import type { TikTokReport } from '@/services/tiktok/ads'
 import { Loader2, Music2 } from 'lucide-react'
 
@@ -69,6 +70,7 @@ export default function TikTokAdsPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">TikTok Ads</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Performance across campaigns</p>
         </div>
+        <ExportPdfButton platform="tiktok" startDate={range.startDate} endDate={range.endDate} />
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 

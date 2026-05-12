@@ -38,6 +38,7 @@ export interface ReportData {
   momComparisons: MoMMetric[]
   aiNarrative: string
   generatedAt: string
+  selectedPlatforms?: string[]
   // Full platform data for detailed DOCX sections
   platforms?: {
     googleAds?: Record<string, unknown> | null
@@ -78,106 +79,147 @@ async function fetchWithTimeout(url: string, reqHeaders: Record<string, string> 
   }
 }
 
+// Maps checkbox platform IDs to their API route slugs
+const PLATFORM_SLUG: Record<string, string> = {
+  googleAds: 'ads',
+  meta: 'meta',
+  tiktok: 'tiktok',
+  linkedin: 'linkedin',
+  ga4: 'ga4',
+  gsc: 'gsc',
+  gbp: 'gbp',
+  wordpress: 'wordpress',
+}
+
 export async function generateReport(
   workspaceId: string,
   startDate: string,
   endDate: string,
   title: string,
   baseUrl: string,
-  authCookie: string
+  authCookie: string,
+  selectedPlatforms?: string[]
 ): Promise<ReportData> {
   const prev = prevRange(startDate, endDate)
-  const headers = { Cookie: authCookie }
+  const reqHeaders = { Cookie: authCookie }
 
-  const paidPlatforms = ['ga4', 'ads', 'meta', 'tiktok', 'linkedin', 'gsc', 'gbp']
+  // Which platforms to fetch (default: all)
+  const sel = selectedPlatforms ?? Object.keys(PLATFORM_SLUG)
+  const has = (id: string) => sel.includes(id)
+
   const qs = (s: string, e: string) => `?startDate=${s}&endDate=${e}`
 
-  // Fetch current + previous period for paid/organic platforms; wordpress current only
-  const [currentResults, prevResults, wpResult] = await Promise.all([
-    Promise.allSettled(
-      paidPlatforms.map((p) =>
-        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(startDate, endDate)}`, headers)
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      )
-    ),
-    Promise.allSettled(
-      paidPlatforms.map((p) =>
-        fetchWithTimeout(`${baseUrl}/api/analytics/${p}${qs(prev.startDate, prev.endDate)}`, headers)
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      )
-    ),
-    fetchWithTimeout(`${baseUrl}/api/analytics/wordpress`, headers)
+  // Non-wordpress platforms fetched with date range (current + previous period)
+  const dateRangePlatforms = ['ga4', 'googleAds', 'meta', 'tiktok', 'linkedin', 'gsc', 'gbp']
+    .filter(has)
+  const slugs = dateRangePlatforms.map((id) => PLATFORM_SLUG[id])
+
+  const fetchOne = (slug: string, start: string, end: string) =>
+    fetchWithTimeout(`${baseUrl}/api/analytics/${slug}${qs(start, end)}`, reqHeaders)
       .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null),
+      .catch(() => null)
+
+  const [currentResults, prevResults, wpResult] = await Promise.all([
+    Promise.allSettled(slugs.map((s) => fetchOne(s, startDate, endDate))),
+    Promise.allSettled(slugs.map((s) => fetchOne(s, prev.startDate, prev.endDate))),
+    has('wordpress')
+      ? fetchWithTimeout(`${baseUrl}/api/analytics/wordpress`, reqHeaders)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      : Promise.resolve(null),
   ])
 
-  const [ga4, ads, meta, tiktok, linkedin, gsc, gbp] = currentResults.map((r) =>
-    r.status === 'fulfilled' ? r.value : null
-  )
-  const [pGa4, pAds, pMeta, pTiktok, pLinkedin, pGsc, pGbp] = prevResults.map((r) =>
-    r.status === 'fulfilled' ? r.value : null
-  )
-  const wordpress = wpResult
+  // Build lookup by platform ID
+  const cur: Record<string, unknown> = {}
+  const prv: Record<string, unknown> = {}
+  dateRangePlatforms.forEach((id, i) => {
+    cur[id] = currentResults[i].status === 'fulfilled' ? currentResults[i].value : null
+    prv[id] = prevResults[i].status === 'fulfilled' ? prevResults[i].value : null
+  })
+
+  // Convenience aliases (null when not selected)
+  const ga4 = (cur.ga4 ?? null) as Record<string, unknown> | null
+  const ads = (cur.googleAds ?? null) as Record<string, unknown> | null
+  const meta = (cur.meta ?? null) as Record<string, unknown> | null
+  const tiktok = (cur.tiktok ?? null) as Record<string, unknown> | null
+  const linkedin = (cur.linkedin ?? null) as Record<string, unknown> | null
+  const gsc = (cur.gsc ?? null) as Record<string, unknown> | null
+  const gbp = (cur.gbp ?? null) as Record<string, unknown> | null
+  const wordpress = wpResult as Record<string, unknown> | null
+
+  const pAds = (prv.googleAds ?? null) as Record<string, unknown> | null
+  const pMeta = (prv.meta ?? null) as Record<string, unknown> | null
+  const pTiktok = (prv.tiktok ?? null) as Record<string, unknown> | null
+  const pLinkedin = (prv.linkedin ?? null) as Record<string, unknown> | null
+  const pGa4 = (prv.ga4 ?? null) as Record<string, unknown> | null
+  const pGsc = (prv.gsc ?? null) as Record<string, unknown> | null
+  const pGbp = (prv.gbp ?? null) as Record<string, unknown> | null
+
+  // Typed overview accessor helper
+  const ov = (d: Record<string, unknown> | null) =>
+    (d?.overview ?? {}) as Record<string, number>
 
   // Build channel metrics
   const channels: ChannelMetrics[] = []
 
-  if (ads?.overview) {
+  if (ads && ov(ads).spend !== undefined) {
+    const o = ov(ads)
     channels.push({
       channel: 'Google Ads',
       color: '#4285f4',
-      spend: ads.overview.spend ?? 0,
-      impressions: ads.overview.impressions ?? 0,
-      clicks: ads.overview.clicks ?? 0,
-      ctr: ads.overview.ctr ?? 0,
-      cpm: ads.overview.impressions > 0 ? ((ads.overview.cost ?? 0) / ads.overview.impressions) * 1000 : 0,
-      conversions: ads.overview.conversions ?? 0,
-      cpa: ads.overview.costPerConversion ?? 0,
-      roas: ads.overview.roas ?? 0,
+      spend: o.spend ?? 0,
+      impressions: o.impressions ?? 0,
+      clicks: o.clicks ?? 0,
+      ctr: o.ctr ?? 0,
+      cpm: o.impressions > 0 ? ((o.spend ?? 0) / o.impressions) * 1000 : 0,
+      conversions: o.conversions ?? 0,
+      cpa: o.costPerConversion ?? 0,
+      roas: o.roas ?? 0,
     })
   }
 
-  if (meta?.overview) {
+  if (meta && ov(meta).spend !== undefined) {
+    const o = ov(meta)
     channels.push({
       channel: 'Meta Ads',
       color: '#e91e8c',
-      spend: meta.overview.spend ?? 0,
-      impressions: meta.overview.impressions ?? 0,
-      clicks: meta.overview.clicks ?? 0,
-      ctr: meta.overview.ctr ?? 0,
-      cpm: meta.overview.cpm ?? 0,
-      conversions: meta.overview.conversions ?? 0,
-      cpa: meta.overview.conversions > 0 ? (meta.overview.spend / meta.overview.conversions) : 0,
+      spend: o.spend ?? 0,
+      impressions: o.impressions ?? 0,
+      clicks: o.clicks ?? 0,
+      ctr: o.ctr ?? 0,
+      cpm: o.cpm ?? 0,
+      conversions: o.conversions ?? 0,
+      cpa: o.conversions > 0 ? (o.spend / o.conversions) : 0,
     })
   }
 
-  if (tiktok?.overview) {
+  if (tiktok && ov(tiktok).spend !== undefined) {
+    const o = ov(tiktok)
     channels.push({
       channel: 'TikTok Ads',
       color: '#14b8a6',
-      spend: tiktok.overview.spend ?? 0,
-      impressions: tiktok.overview.impressions ?? 0,
-      clicks: tiktok.overview.clicks ?? 0,
-      ctr: tiktok.overview.ctr ?? 0,
-      cpm: tiktok.overview.cpm ?? 0,
-      conversions: tiktok.overview.conversions ?? 0,
-      cpa: tiktok.overview.cpa ?? 0,
+      spend: o.spend ?? 0,
+      impressions: o.impressions ?? 0,
+      clicks: o.clicks ?? 0,
+      ctr: o.ctr ?? 0,
+      cpm: o.cpm ?? 0,
+      conversions: o.conversions ?? 0,
+      cpa: o.cpa ?? 0,
     })
   }
 
-  if (linkedin?.overview) {
+  if (linkedin && ov(linkedin).spend !== undefined) {
+    const o = ov(linkedin)
     channels.push({
       channel: 'LinkedIn Ads',
       color: '#0a66c2',
-      spend: linkedin.overview.spend ?? 0,
-      impressions: linkedin.overview.impressions ?? 0,
-      clicks: linkedin.overview.clicks ?? 0,
-      ctr: linkedin.overview.ctr ?? 0,
-      cpm: linkedin.overview.cpm ?? 0,
-      conversions: linkedin.overview.conversions ?? 0,
-      cpa: linkedin.overview.costPerConversion ?? 0,
+      spend: o.spend ?? 0,
+      impressions: o.impressions ?? 0,
+      clicks: o.clicks ?? 0,
+      ctr: o.ctr ?? 0,
+      cpm: o.cpm ?? 0,
+      conversions: o.conversions ?? 0,
+      cpa: o.costPerConversion ?? 0,
     })
   }
 
@@ -191,23 +233,23 @@ export async function generateReport(
 
   // Previous period totals for MoM
   const prevChannels = {
-    googleAds: pAds?.overview?.spend ?? 0,
-    meta: pMeta?.overview?.spend ?? 0,
-    tiktok: pTiktok?.overview?.spend ?? 0,
-    linkedin: pLinkedin?.overview?.spend ?? 0,
+    googleAds: (ov(pAds).spend ?? 0),
+    meta: (ov(pMeta).spend ?? 0),
+    tiktok: (ov(pTiktok).spend ?? 0),
+    linkedin: (ov(pLinkedin).spend ?? 0),
   }
   const prevTotalSpend = Object.values(prevChannels).reduce((s, v) => s + v, 0)
   const prevConversions =
-    (pAds?.overview?.conversions ?? 0) +
-    (pMeta?.overview?.conversions ?? 0) +
-    (pTiktok?.overview?.conversions ?? 0) +
-    (pLinkedin?.overview?.conversions ?? 0)
-  const prevOrganicClicks = pGa4?.overview?.sessions ?? 0
-  const organicClicks = ga4?.overview?.sessions ?? 0
-  const organicKeywordClicks = gsc?.overview?.clicks ?? 0
-  const prevOrganicKeywordClicks = pGsc?.overview?.clicks ?? 0
-  const gbpViews = gbp?.overview?.totalViews ?? 0
-  const prevGbpViews = pGbp?.overview?.totalViews ?? 0
+    (ov(pAds).conversions ?? 0) +
+    (ov(pMeta).conversions ?? 0) +
+    (ov(pTiktok).conversions ?? 0) +
+    (ov(pLinkedin).conversions ?? 0)
+  const prevOrganicClicks = ov(pGa4).sessions ?? 0
+  const organicClicks = ov(ga4).sessions ?? 0
+  const organicKeywordClicks = ov(gsc).clicks ?? 0
+  const prevOrganicKeywordClicks = ov(pGsc).clicks ?? 0
+  const gbpViews = ov(gbp).totalViews ?? 0
+  const prevGbpViews = ov(pGbp).totalViews ?? 0
 
   const momComparisons: MoMMetric[] = [
     {
@@ -258,10 +300,14 @@ export async function generateReport(
     if (channel === 'linkedin') day.linkedin += spend
   }
 
-  for (const row of ads?.daily ?? []) addToDay(row.date, 'google', row.spend ?? 0)
-  for (const row of meta?.daily ?? []) addToDay(row.date, 'meta', row.spend ?? 0)
-  for (const row of tiktok?.daily ?? []) addToDay(row.date, 'tiktok', row.spend ?? 0)
-  for (const row of linkedin?.daily ?? []) addToDay(row.date, 'linkedin', row.spend ?? 0)
+  const adsDailyRows = (ads?.daily ?? []) as Array<Record<string, unknown>>
+  const metaDailyRows = (meta?.daily ?? []) as Array<Record<string, unknown>>
+  const tiktokDailyRows = (tiktok?.daily ?? []) as Array<Record<string, unknown>>
+  const linkedinDailyRows = (linkedin?.daily ?? []) as Array<Record<string, unknown>>
+  for (const row of adsDailyRows) addToDay(String(row.date ?? ''), 'google', Number(row.spend ?? 0))
+  for (const row of metaDailyRows) addToDay(String(row.date ?? ''), 'meta', Number(row.spend ?? 0))
+  for (const row of tiktokDailyRows) addToDay(String(row.date ?? ''), 'tiktok', Number(row.spend ?? 0))
+  for (const row of linkedinDailyRows) addToDay(String(row.date ?? ''), 'linkedin', Number(row.spend ?? 0))
 
   const dailySpend = Array.from(dailyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
@@ -294,6 +340,7 @@ export async function generateReport(
     momComparisons,
     aiNarrative,
     generatedAt: new Date().toISOString(),
+    selectedPlatforms: sel,
     platforms: {
       googleAds: ads,
       meta,

@@ -8,6 +8,7 @@ import { LinkedInSpendChart } from '@/components/analytics/linkedin-spend-chart'
 import { LinkedInCampaignsTable } from '@/components/analytics/linkedin-campaigns-table'
 import { LinkedInDemographics } from '@/components/analytics/linkedin-demographics'
 import { DateRangePicker } from '@/components/analytics/date-range-picker'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import type { LinkedInReport } from '@/services/linkedin/ads'
 import { Loader2, Briefcase } from 'lucide-react'
 
@@ -70,6 +71,7 @@ export default function LinkedInAdsPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">LinkedIn Ads</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">B2B campaign performance</p>
         </div>
+        <ExportPdfButton platform="linkedin" startDate={range.startDate} endDate={range.endDate} />
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 

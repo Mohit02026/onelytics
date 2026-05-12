@@ -4,10 +4,14 @@ import { generateReport, generateAINarrative } from '@/services/reports/generate
 import { z } from 'zod'
 import { headers } from 'next/headers'
 
+const VALID_PLATFORMS = ['googleAds', 'meta', 'tiktok', 'linkedin', 'ga4', 'gsc', 'gbp', 'wordpress'] as const
+type Platform = typeof VALID_PLATFORMS[number]
+
 const schema = z.object({
   title: z.string().min(1).max(120),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  selectedPlatforms: z.array(z.enum(VALID_PLATFORMS)).min(1).optional(),
 })
 
 export async function GET() {
@@ -40,7 +44,8 @@ export async function POST(req: Request) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { title, startDate, endDate } = parsed.data
+  const { title, startDate, endDate, selectedPlatforms } = parsed.data
+  const platforms: Platform[] = selectedPlatforms ?? [...VALID_PLATFORMS]
   const workspaceId = session.user.workspaceId
   const userId = session.user.id
 
@@ -63,7 +68,7 @@ export async function POST(req: Request) {
   const baseUrl = process.env.NEXTAUTH_URL!
 
   try {
-    const data = await generateReport(workspaceId, startDate, endDate, title, baseUrl, cookie)
+    const data = await generateReport(workspaceId, startDate, endDate, title, baseUrl, cookie, platforms)
     await prisma.generatedReport.update({
       where: { id: report.id },
       data: { status: 'READY', data: data as object },

@@ -6,6 +6,7 @@ import { WpOverviewCards } from '@/components/analytics/wp-overview-cards'
 import { WpPostsTable } from '@/components/analytics/wp-posts-table'
 import { WpCategoriesTable } from '@/components/analytics/wp-categories-table'
 import { Button } from '@/components/ui/button'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Globe, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
@@ -100,6 +101,7 @@ export default function WordPressPage() {
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <ExportPdfButton platform="wordpress" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>

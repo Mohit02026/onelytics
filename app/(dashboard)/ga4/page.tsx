@@ -7,6 +7,7 @@ import { SessionsChart } from '@/components/analytics/sessions-chart'
 import { TrafficSourcesChart } from '@/components/analytics/traffic-sources-chart'
 import { Ga4TopPagesTable, Ga4DeviceCountryBreakdown } from '@/components/analytics/ga4-breakdowns'
 import { Button } from '@/components/ui/button'
+import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { BarChart3, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
@@ -106,6 +107,7 @@ export default function Ga4Page() {
           >
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <ExportPdfButton platform="ga4" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
