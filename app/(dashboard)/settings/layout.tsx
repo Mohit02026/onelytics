@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Settings, Users, Plug, Globe, ChevronRight } from 'lucide-react'
+import { Settings, Users, Plug, Globe, ChevronRight, UserCircle } from 'lucide-react'
 
 const NAV = [
-  { href: '/settings', label: 'General', icon: Settings, exact: true },
+  { href: '/settings/profile', label: 'Profile', icon: UserCircle, exact: false },
+  { href: '/settings', label: 'Workspace', icon: Settings, exact: true },
   { href: '/settings/members', label: 'Members & Roles', icon: Users, exact: false },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug, exact: false },
   { href: '/settings/portal', label: 'Client Portal', icon: Globe, exact: false },

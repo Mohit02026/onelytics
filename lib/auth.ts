@@ -26,11 +26,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           
           const passwordsMatch = await bcrypt.compare(password, user.password);
           if (passwordsMatch) {
-            return { 
-              id: user.id, 
-              email: user.email ?? "", 
-              name: user.name ?? "", 
-              workspaceId: user.workspaceId 
+            return {
+              id: user.id,
+              email: user.email ?? "",
+              name: user.name ?? "",
+              workspaceId: user.workspaceId,
+              organizationId: user.organizationId ?? undefined,
+              onboarded: user.onboarded,
             };
           }
         }

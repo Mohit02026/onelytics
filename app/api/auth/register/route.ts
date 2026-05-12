@@ -27,11 +27,16 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Atomically create Workspace, User, and OWNER membership
+    // Atomically create Organization, Workspace, User, and memberships
     const result = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: { name: name ? `${name}'s Agency` : "My Agency" }
+      })
+
       const workspace = await tx.workspace.create({
         data: {
           name: name ? `${name}'s Workspace` : "My Workspace",
+          organizationId: org.id,
         }
       })
 
@@ -40,7 +45,8 @@ export async function POST(req: Request) {
           email,
           password: hashedPassword,
           name,
-          workspaceId: workspace.id
+          workspaceId: workspace.id,
+          organizationId: org.id,
         }
       })
 
@@ -48,7 +54,11 @@ export async function POST(req: Request) {
         data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' }
       })
 
-      return { user, workspace }
+      await tx.orgMember.create({
+        data: { organizationId: org.id, userId: user.id, role: 'OWNER' }
+      })
+
+      return { user, workspace, org }
     })
 
     return NextResponse.json(

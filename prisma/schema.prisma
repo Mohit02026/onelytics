@@ -13,6 +13,62 @@ enum MemberRole {
   VIEWER
 }
 
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?  @map("logo_url")
+  color     String?  @default("#2563eb")
+  domain    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspaces Workspace[]
+  members    OrgMember[]
+  invites    OrgInvite[]
+
+  @@map("organizations")
+}
+
+model OrgMember {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           OrgRole  @default(MEMBER)
+  joinedAt       DateTime @default(now()) @map("joined_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("org_members")
+}
+
+model OrgInvite {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  email          String
+  role           OrgRole   @default(MEMBER)
+  token          String    @unique
+  invitedById    String?   @map("invited_by_id")
+  expiresAt      DateTime  @map("expires_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([token])
+  @@map("org_invites")
+}
+
 model Workspace {
   id        String   @id @default(uuid())
   name      String
@@ -31,6 +87,10 @@ model Workspace {
   portalEnabled   Boolean @default(false)
   portalToken     String? @unique
   portalPassword  String?
+
+  // Agency link
+  organizationId String? @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
 
   users             User[]
   connectedAccounts ConnectedAccount[]
@@ -114,22 +174,30 @@ model AnalyticsCache {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  password      String?
-  image         String?
-  workspaceId   String    @map("workspace_id")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  name           String?
+  email          String?   @unique
+  emailVerified  DateTime?
+  password       String?
+  image          String?
+  workspaceId    String    @map("workspace_id")
+  organizationId String?   @map("organization_id")
+  phone          String?
+  jobTitle       String?   @map("job_title")
+  avatarUrl      String?   @map("avatar_url")
+  timezone       String?   @default("America/New_York")
+  onboarded      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   workspace     Workspace       @relation(fields: [workspaceId], references: [id])
   accounts      Account[]
   sessions      Session[]
   memberships   WorkspaceMember[]
+  orgMemberships OrgMember[]
 
   @@index([workspaceId])
+  @@index([organizationId])
 }
 
 model Account {
