@@ -26,21 +26,45 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           
           const passwordsMatch = await bcrypt.compare(password, user.password);
           if (passwordsMatch) {
-            // Fetch org role so we can gate agency views
-            let orgRole: string | undefined
-            if (user.organizationId) {
-              const orgMember = await prisma.orgMember.findUnique({
-                where: { organizationId_userId: { organizationId: user.organizationId, userId: user.id } },
-                select: { role: true },
+            let organizationId = user.organizationId ?? undefined
+
+            // Lazy org bootstrap for users created before the Organization model existed
+            if (!organizationId) {
+              const org = await prisma.$transaction(async (tx) => {
+                const newOrg = await tx.organization.create({
+                  data: { name: user.name ? `${user.name}'s Agency` : 'My Agency' },
+                })
+                await tx.workspace.update({
+                  where: { id: user.workspaceId },
+                  data: { organizationId: newOrg.id },
+                })
+                await tx.user.update({
+                  where: { id: user.id },
+                  data: { organizationId: newOrg.id },
+                })
+                await tx.orgMember.upsert({
+                  where: { organizationId_userId: { organizationId: newOrg.id, userId: user.id } },
+                  create: { organizationId: newOrg.id, userId: user.id, role: 'OWNER' },
+                  update: {},
+                })
+                return newOrg
               })
-              orgRole = orgMember?.role ?? undefined
+              organizationId = org.id
             }
+
+            // Fetch org role
+            const orgMember = await prisma.orgMember.findUnique({
+              where: { organizationId_userId: { organizationId: organizationId!, userId: user.id } },
+              select: { role: true },
+            })
+            const orgRole = orgMember?.role ?? undefined
+
             return {
               id: user.id,
               email: user.email ?? "",
               name: user.name ?? "",
               workspaceId: user.workspaceId,
-              organizationId: user.organizationId ?? undefined,
+              organizationId,
               onboarded: user.onboarded,
               orgRole,
             };
