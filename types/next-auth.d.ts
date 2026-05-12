@@ -7,6 +7,7 @@ declare module "next-auth" {
       workspaceId: string
       organizationId?: string
       onboarded?: boolean
+      orgRole?: string
     } & DefaultSession["user"]
   }
 
@@ -14,6 +15,7 @@ declare module "next-auth" {
     workspaceId: string
     organizationId?: string
     onboarded?: boolean
+    orgRole?: string
   }
 }
 
@@ -23,5 +25,6 @@ declare module "next-auth/jwt" {
     workspaceId: string
     organizationId?: string
     onboarded?: boolean
+    orgRole?: string
   }
 }

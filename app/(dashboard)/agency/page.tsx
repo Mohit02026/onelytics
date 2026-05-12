@@ -89,8 +89,9 @@ export default function AgencyPage() {
 
   if (!data) {
     return (
-      <div className="max-w-2xl mx-auto py-16 text-center">
-        <p className="text-gray-500">No agency found for your account.</p>
+      <div className="max-w-2xl mx-auto py-16 text-center space-y-2">
+        <p className="text-gray-900 dark:text-white font-medium">Access restricted</p>
+        <p className="text-sm text-gray-500">Agency overview is only available to the organisation owner.</p>
       </div>
     )
   }

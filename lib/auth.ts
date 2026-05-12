@@ -26,6 +26,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           
           const passwordsMatch = await bcrypt.compare(password, user.password);
           if (passwordsMatch) {
+            // Fetch org role so we can gate agency views
+            let orgRole: string | undefined
+            if (user.organizationId) {
+              const orgMember = await prisma.orgMember.findUnique({
+                where: { organizationId_userId: { organizationId: user.organizationId, userId: user.id } },
+                select: { role: true },
+              })
+              orgRole = orgMember?.role ?? undefined
+            }
             return {
               id: user.id,
               email: user.email ?? "",
@@ -33,6 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               workspaceId: user.workspaceId,
               organizationId: user.organizationId ?? undefined,
               onboarded: user.onboarded,
+              orgRole,
             };
           }
         }

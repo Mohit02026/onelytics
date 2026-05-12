@@ -12,11 +12,13 @@ export async function GET() {
     return NextResponse.json({ error: 'No organisation' }, { status: 404 })
   }
 
-  // Verify org membership
+  // Only org OWNER can access the agency overview
   const orgMembership = await prisma.orgMember.findUnique({
     where: { organizationId_userId: { organizationId, userId } },
   })
-  if (!orgMembership) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!orgMembership || orgMembership.role !== 'OWNER') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },

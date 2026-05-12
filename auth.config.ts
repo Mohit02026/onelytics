@@ -34,6 +34,8 @@ export const authConfig = {
         token.organizationId = user.organizationId;
         // @ts-ignore
         token.onboarded = user.onboarded;
+        // @ts-ignore
+        token.orgRole = user.orgRole;
       }
       if (trigger === 'update') {
         if (sessionData?.workspaceId) token.workspaceId = sessionData.workspaceId;
@@ -46,7 +48,8 @@ export const authConfig = {
         if (token.id) session.user.id = token.id as string;
         if (token.workspaceId) session.user.workspaceId = token.workspaceId as string;
         if (token.organizationId) session.user.organizationId = token.organizationId as string;
-        session.user.onboarded = token.onboarded as boolean ?? false;
+        session.user.onboarded = (token.onboarded as boolean) ?? false;
+        if (token.orgRole) session.user.orgRole = token.orgRole as string;
       }
       return session;
     }

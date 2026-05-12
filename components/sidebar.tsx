@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   LayoutDashboard,
   BarChart3,
@@ -43,6 +44,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const isOrgOwner = session?.user?.orgRole === 'OWNER'
   const [connectedCount, setConnectedCount] = useState<number | null>(null)
 
   useEffect(() => {
@@ -75,8 +78,8 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="flex-1 py-4 px-3 flex flex-col gap-0.5 overflow-y-auto">
-        {/* Agency */}
-        {topItems.map((item) => {
+        {/* Agency — OWNER only */}
+        {isOrgOwner && topItems.map((item) => {
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
