@@ -18,29 +18,27 @@ export async function POST(req: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toJson = (obj: Record<string, unknown>) => obj as any
+  const omit = (obj: Record<string, unknown>, ...keys: string[]) =>
+    Object.fromEntries(Object.entries(obj).filter(([k]) => !keys.includes(k)))
 
   if (service === 'ads') {
-    // Only clear the Google Ads customer ID from metadata
-    const { googleAdsCustomerId: _, ...rest } = meta
     await prisma.connectedAccount.update({
       where: { workspaceId_provider: { workspaceId, provider: 'google' } },
-      data: { metadata: toJson(rest) },
+      data: { metadata: toJson(omit(meta, 'googleAdsCustomerId')) },
     })
     await prisma.analyticsCache.deleteMany({ where: { workspaceId, provider: 'google-ads' } })
 
   } else if (service === 'gsc') {
-    const { gscSiteUrl: _, ...rest } = meta
     await prisma.connectedAccount.update({
       where: { workspaceId_provider: { workspaceId, provider: 'google' } },
-      data: { metadata: toJson(rest) },
+      data: { metadata: toJson(omit(meta, 'gscSiteUrl')) },
     })
     await prisma.analyticsCache.deleteMany({ where: { workspaceId, provider: 'gsc' } })
 
   } else if (service === 'gbp') {
-    const { gbpLocationId: _id, gbpLocationName: _name, ...rest } = meta
     await prisma.connectedAccount.update({
       where: { workspaceId_provider: { workspaceId, provider: 'google' } },
-      data: { metadata: toJson(rest) },
+      data: { metadata: toJson(omit(meta, 'gbpLocationId', 'gbpLocationName')) },
     })
     await prisma.analyticsCache.deleteMany({ where: { workspaceId, provider: 'gbp' } })
 
