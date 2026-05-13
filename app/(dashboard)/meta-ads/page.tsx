@@ -5,6 +5,7 @@ import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-r
 import { MetaOverviewCards } from '@/components/analytics/meta-overview-cards'
 import { MetaSpendChart } from '@/components/analytics/meta-spend-chart'
 import { MetaCampaignsTable } from '@/components/analytics/meta-campaigns-table'
+import { MetaPlacementTable } from '@/components/analytics/meta-placement-table'
 import { Button } from '@/components/ui/button'
 import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Share2, RefreshCw, AlertCircle } from 'lucide-react'
@@ -92,6 +93,7 @@ export default function MetaAdsPage() {
         <div className="space-y-6">
           <MetaSpendChart data={report.daily} />
           <MetaCampaignsTable campaigns={report.campaigns} />
+          {report.placements?.length > 0 && <MetaPlacementTable placements={report.placements} />}
         </div>
       )}
     </div>

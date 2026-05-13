@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, MousePointerClick, Timer, TrendingDown, Eye, UserPlus } from 'lucide-react'
+import { Users, MousePointerClick, Timer, TrendingDown, Eye, UserPlus, Activity } from 'lucide-react'
 import type { Ga4Overview } from '@/services/google/ga4'
 
 function formatDuration(seconds: number): string {
@@ -57,6 +57,13 @@ export function Ga4OverviewCards({ data }: Props) {
       bg: 'bg-orange-50 dark:bg-orange-950',
     },
     {
+      label: 'Engagement',
+      value: `${(data.engagementRate ?? 0).toFixed(1)}%`,
+      icon: Activity,
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-950',
+    },
+    {
       label: 'Avg. Session',
       value: formatDuration(data.avgSessionDuration),
       icon: Timer,
@@ -66,7 +73,7 @@ export function Ga4OverviewCards({ data }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">

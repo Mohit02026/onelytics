@@ -212,8 +212,11 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
                 <KvBox label="Ad Spend" value={fmt$((p.googleAds.overview as any).spend)} />
                 <KvBox label="Clicks" value={fmtN((p.googleAds.overview as any).clicks)} />
                 <KvBox label="Impressions" value={fmtN((p.googleAds.overview as any).impressions)} />
+                <KvBox label="CTR" value={fmtPct((p.googleAds.overview as any).ctr, 2)} />
                 <KvBox label="CPC" value={fmt$((p.googleAds.overview as any).cpc)} />
-                <KvBox label="Conversions" value={fmtN((p.googleAds.overview as any).conversions)} />
+                <KvBox label="Conversions" value={fmtN((p.googleAds.overview as any).conversions ?? 0)} />
+                <KvBox label="Cost/Conv." value={(p.googleAds.overview as any).costPerConversion ? fmt$((p.googleAds.overview as any).costPerConversion) : '—'} />
+                <KvBox label="Phone Calls" value={fmtN((p.googleAds.overview as any).phoneCalls ?? 0)} />
                 <KvBox label="ROAS" value={(p.googleAds.overview as any).roas ? fmtX((p.googleAds.overview as any).roas) : '—'} />
               </View>
               {Array.isArray(p.googleAds.campaigns) && p.googleAds.campaigns.length > 0 ? (
@@ -221,15 +224,24 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
                   <Text style={styles.h3}>Top Campaigns</Text>
                   <DataTable
                     headers={[
-                      { label: 'Campaign', w: '40%' },
-                      { label: 'Spend', w: '12%' },
-                      { label: 'Clicks', w: '12%' },
-                      { label: 'Impr.', w: '12%' },
-                      { label: 'CPC', w: '12%' },
-                      { label: 'ROAS', w: '12%' },
+                      { label: 'Campaign', w: '30%' },
+                      { label: 'Type', w: '10%' },
+                      { label: 'Spend', w: '10%' },
+                      { label: 'Clicks', w: '10%' },
+                      { label: 'Conv.', w: '10%' },
+                      { label: 'Cost/Conv.', w: '12%' },
+                      { label: 'Calls', w: '8%' },
+                      { label: 'ROAS', w: '10%' },
                     ]}
                     rows={p.googleAds.campaigns.slice(0, 15).map((c: any) => [
-                      String(c.name).slice(0, 40), fmt$(c.spend), fmtN(c.clicks), fmtN(c.impressions), fmt$(c.cpc), c.roas ? fmtX(c.roas) : '—'
+                      String(c.name).slice(0, 30),
+                      String(c.type || '').replace('_', ' ').slice(0, 10),
+                      fmt$(c.spend),
+                      fmtN(c.clicks),
+                      n(c.conversions).toFixed(1),
+                      c.costPerConversion > 0 ? fmt$(c.costPerConversion) : '—',
+                      fmtN(c.phoneCalls ?? 0),
+                      c.roas > 0 ? fmtX(c.roas) : '—',
                     ])}
                   />
                 </View>
@@ -264,6 +276,33 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
                     rows={p.meta.campaigns.slice(0, 15).map((c: any) => [
                       String(c.name).slice(0, 35), String(c.status), fmt$(c.spend), fmtN(c.reach), fmtN(c.impressions), fmtN(c.conversions), c.roas ? fmtX(c.roas) : '—'
                     ])}
+                  />
+                </View>
+              ) : null}
+              {Array.isArray((p.meta as any).placements) && (p.meta as any).placements.length > 0 ? (
+                <View>
+                  <Text style={styles.h3}>Placement Breakdown</Text>
+                  <DataTable
+                    headers={[
+                      { label: 'Platform', w: '20%' },
+                      { label: 'Position', w: '20%' },
+                      { label: 'Spend', w: '15%' },
+                      { label: 'Share', w: '12%' },
+                      { label: 'Impressions', w: '18%' },
+                      { label: 'Clicks', w: '15%' },
+                    ]}
+                    rows={(() => {
+                      const placements = (p.meta as any).placements
+                      const total = placements.reduce((s: number, pl: any) => s + (pl.spend ?? 0), 0)
+                      return placements.slice(0, 10).map((pl: any) => [
+                        String(pl.platform ?? '').replace('_', ' '),
+                        String(pl.position ?? '').replace('_', ' '),
+                        fmt$(pl.spend ?? 0),
+                        total > 0 ? `${(((pl.spend ?? 0) / total) * 100).toFixed(1)}%` : '—',
+                        fmtN(pl.impressions ?? 0),
+                        fmtN(pl.clicks ?? 0),
+                      ])
+                    })()}
                   />
                 </View>
               ) : null}
@@ -304,7 +343,11 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
               <View style={styles.kvTable}>
                 <KvBox label="Sessions" value={fmtN((p.ga4.overview as any).sessions)} />
                 <KvBox label="Users" value={fmtN((p.ga4.overview as any).users)} />
+                <KvBox label="New Users" value={fmtN((p.ga4.overview as any).newUsers ?? 0)} />
                 <KvBox label="Pageviews" value={fmtN((p.ga4.overview as any).pageviews)} />
+                <KvBox label="Bounce Rate" value={fmtPct((p.ga4.overview as any).bounceRate, 1)} />
+                <KvBox label="Engagement" value={fmtPct((p.ga4.overview as any).engagementRate ?? 0, 1)} />
+                <KvBox label="Avg. Session" value={fmtSec((p.ga4.overview as any).avgSessionDuration)} />
               </View>
               {Array.isArray(p.ga4.topPages) && p.ga4.topPages.length > 0 ? (
                 <View>
@@ -355,13 +398,54 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
             <View>
               <Text style={styles.h2}>Google Business Profile</Text>
               <View style={styles.kvTable}>
-                <KvBox label="Profile Views" value={fmtN((p.gbp.overview as any).views)} />
-                <KvBox label="Website Clicks" value={fmtN((p.gbp.overview as any).websiteClicks)} />
-                <KvBox label="Calls" value={fmtN((p.gbp.overview as any).calls)} />
-                <KvBox label="Directions" value={fmtN((p.gbp.overview as any).directions)} />
-                <KvBox label="Messages" value={fmtN((p.gbp.overview as any).messages)} />
-                <KvBox label="Bookings" value={fmtN((p.gbp.overview as any).bookings)} />
+                <KvBox label="Total Views" value={fmtN((p.gbp.overview as any).totalViews ?? 0)} />
+                <KvBox label="Search Views" value={fmtN((p.gbp.overview as any).searchViews ?? 0)} />
+                <KvBox label="Maps Views" value={fmtN((p.gbp.overview as any).mapViews ?? 0)} />
+                <KvBox label="Photo Views" value={fmtN((p.gbp.overview as any).photoViews ?? 0)} />
+                <KvBox label="Website Clicks" value={fmtN((p.gbp.overview as any).websiteClicks ?? 0)} />
+                <KvBox label="Calls" value={fmtN((p.gbp.overview as any).calls ?? 0)} />
+                <KvBox label="Directions" value={fmtN((p.gbp.overview as any).directionRequests ?? 0)} />
+                <KvBox label="Avg Rating" value={(p.gbp.overview as any).avgRating ? n((p.gbp.overview as any).avgRating).toFixed(1) : '—'} />
+                <KvBox label="Total Reviews" value={fmtN((p.gbp.overview as any).totalReviews ?? 0)} />
               </View>
+              {Array.isArray((p.gbp as any).reviews) && (p.gbp as any).reviews.length > 0 ? (
+                <View>
+                  <Text style={styles.h3}>Recent Reviews</Text>
+                  <DataTable
+                    headers={[
+                      { label: 'Date', w: '18%' },
+                      { label: 'Reviewer', w: '20%' },
+                      { label: 'Review', w: '42%' },
+                      { label: 'Rating', w: '10%' },
+                      { label: 'Replied', w: '10%' },
+                    ]}
+                    rows={(p.gbp as any).reviews.slice(0, 10).map((r: any) => [
+                      r.createTime ? new Date(r.createTime).toLocaleDateString() : '—',
+                      String(r.reviewer || 'Anonymous').slice(0, 20),
+                      String(r.comment || '—').slice(0, 60),
+                      `${r.rating ?? 0}/5`,
+                      r.replied ? 'Yes' : 'No',
+                    ])}
+                  />
+                </View>
+              ) : null}
+              {Array.isArray((p.gbp as any).posts) && (p.gbp as any).posts.length > 0 ? (
+                <View>
+                  <Text style={styles.h3}>Recent Posts</Text>
+                  <DataTable
+                    headers={[
+                      { label: 'Date', w: '18%' },
+                      { label: 'Summary', w: '67%' },
+                      { label: 'State', w: '15%' },
+                    ]}
+                    rows={(p.gbp as any).posts.slice(0, 10).map((post: any) => [
+                      post.createTime ? new Date(post.createTime).toLocaleDateString() : '—',
+                      String(post.summary || '—').slice(0, 80),
+                      String(post.state || '—'),
+                    ])}
+                  />
+                </View>
+              ) : null}
             </View>
           ) : null}
 

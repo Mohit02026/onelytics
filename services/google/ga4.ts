@@ -2,6 +2,7 @@ export interface Ga4Overview {
   sessions: number
   users: number
   bounceRate: number
+  engagementRate: number // percentage (0-100)
   avgSessionDuration: number // seconds
   pageviews: number
   newUsers: number
@@ -77,6 +78,7 @@ export async function getGa4ReportFromApi(
           { name: 'averageSessionDuration' },
           { name: 'screenPageViews' },
           { name: 'newUsers' },
+          { name: 'engagementRate' },
         ],
         metricAggregations: ['TOTAL'],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
@@ -159,11 +161,12 @@ export async function getGa4ReportFromApi(
   const totals = dailyData.totals?.[0]?.metricValues ?? []
   const totalSessions = parseInt(totals[0]?.value ?? '0', 10)
   const totalUsers = parseInt(totals[1]?.value ?? '0', 10)
-  // GA4 returns bounceRate as a ratio (0–1); convert to percentage
+  // GA4 returns bounceRate and engagementRate as ratios (0–1); convert to percentage
   const bounceRate = Math.round(parseFloat(totals[2]?.value ?? '0') * 1000) / 10
   const avgDuration = Math.round(parseFloat(totals[3]?.value ?? '0'))
   const totalPageviews = parseInt(totals[4]?.value ?? '0', 10)
   const totalNewUsers = parseInt(totals[5]?.value ?? '0', 10)
+  const engagementRate = Math.round(parseFloat(totals[6]?.value ?? '0') * 1000) / 10
 
   const totalSourceSessions = (sourcesData.rows ?? []).reduce(
     (sum: number, r: Row) => sum + parseInt(r.metricValues[0].value, 10),
@@ -223,6 +226,7 @@ export async function getGa4ReportFromApi(
       sessions: totalSessions,
       users: totalUsers,
       bounceRate,
+      engagementRate,
       avgSessionDuration: avgDuration,
       pageviews: totalPageviews,
       newUsers: totalNewUsers,
@@ -278,6 +282,7 @@ export function getGa4ReportDummy(startDate: string, endDate: string): Ga4Report
       sessions: totalSessions,
       users: totalUsers,
       bounceRate: 47.3,
+      engagementRate: 52.7,
       avgSessionDuration: 152,
       pageviews: totalPageviews,
       newUsers,

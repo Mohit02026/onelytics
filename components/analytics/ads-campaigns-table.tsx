@@ -18,10 +18,10 @@ export function AdsCampaignsTable({ campaigns }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800">
-                {['Campaign', 'Spend', 'Clicks', 'Impr.', 'CPC', 'ROAS'].map((h) => (
+                {['Campaign', 'Type', 'Spend', 'Clicks', 'CTR', 'Conv.', 'Cost/Conv.', 'Calls', 'ROAS'].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                    className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -34,17 +34,20 @@ export function AdsCampaignsTable({ campaigns }: Props) {
                   key={i}
                   className="border-b last:border-0 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white truncate max-w-[180px]">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white truncate max-w-[160px]">
                     {c.name}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs uppercase">
+                    {c.type ? c.type.replace('_', ' ') : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${(c.spend ?? 0).toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{(c.clicks ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{(c.ctr ?? 0).toFixed(2)}%</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{(c.conversions ?? 0).toFixed(1)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                    {(c.impressions ?? 0) >= 1000
-                      ? `${((c.impressions ?? 0) / 1000).toFixed(1)}K`
-                      : (c.impressions ?? 0)}
+                    {(c.costPerConversion ?? 0) > 0 ? `$${(c.costPerConversion).toFixed(2)}` : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${(c.cpc ?? 0).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.phoneCalls ?? 0}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`font-semibold ${
@@ -55,7 +58,7 @@ export function AdsCampaignsTable({ campaigns }: Props) {
                           : 'text-red-600 dark:text-red-400'
                       }`}
                     >
-                      {(c.roas ?? 0).toFixed(1)}x
+                      {(c.roas ?? 0) > 0 ? `${(c.roas).toFixed(1)}x` : '—'}
                     </span>
                   </td>
                 </tr>

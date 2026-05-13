@@ -5,6 +5,9 @@ import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-r
 import { GbpOverviewCards } from '@/components/analytics/gbp-overview-cards'
 import { GbpCallsChart } from '@/components/analytics/gbp-calls-chart'
 import { GbpViewsChart } from '@/components/analytics/gbp-views-chart'
+import { GbpSearchMapsPie } from '@/components/analytics/gbp-search-maps-pie'
+import { GbpReviewsTable } from '@/components/analytics/gbp-reviews-table'
+import { GbpPostsTable } from '@/components/analytics/gbp-posts-table'
 import { Button } from '@/components/ui/button'
 import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Building2, RefreshCw, AlertCircle } from 'lucide-react'
@@ -89,9 +92,16 @@ export default function GoogleBusinessPage() {
       {report && <GbpOverviewCards data={report.overview} />}
 
       {report && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <GbpViewsChart data={report.daily} />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2"><GbpViewsChart data={report.daily} /></div>
+            <GbpSearchMapsPie data={report.overview} />
+          </div>
           <GbpCallsChart data={report.daily} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GbpReviewsTable reviews={report.reviews ?? []} />
+            <GbpPostsTable posts={report.posts ?? []} />
+          </div>
         </div>
       )}
     </div>

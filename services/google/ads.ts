@@ -1,9 +1,13 @@
 export interface AdsOverview {
-  spend: number // USD
+  spend: number
   clicks: number
   impressions: number
-  cpc: number // cost per click
-  roas: number // return on ad spend
+  cpc: number
+  ctr: number
+  roas: number
+  conversions: number
+  costPerConversion: number
+  phoneCalls: number
 }
 
 export interface AdsDailyRow {
@@ -11,15 +15,21 @@ export interface AdsDailyRow {
   spend: number
   clicks: number
   impressions: number
+  phoneCalls: number
 }
 
 export interface AdsCampaign {
   name: string
+  type: string
   spend: number
   clicks: number
   impressions: number
   cpc: number
+  ctr: number
   roas: number
+  conversions: number
+  costPerConversion: number
+  phoneCalls: number
 }
 
 export interface AdsKeyword {
@@ -72,7 +82,8 @@ export async function getAdsReportFromApi(
       segments.date,
       metrics.cost_micros,
       metrics.clicks,
-      metrics.impressions
+      metrics.impressions,
+      metrics.phone_calls
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
     ORDER BY segments.date ASC
@@ -82,10 +93,16 @@ export async function getAdsReportFromApi(
   const campaignQuery = `
     SELECT
       campaign.name,
+      campaign.advertising_channel_type,
       metrics.cost_micros,
       metrics.clicks,
       metrics.impressions,
-      metrics.conversions_value
+      metrics.ctr,
+      metrics.average_cpc,
+      metrics.conversions,
+      metrics.conversions_value,
+      metrics.cost_per_conversion,
+      metrics.phone_calls
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status = 'ENABLED'
@@ -156,8 +173,8 @@ export async function getAdsReportFromApi(
     averageCpc: string; conversions: string; conversionsValue: string
     viewThroughConversions: string; costPerConversion: string
   }
-  type DailyRow = { segments: { date: string }; metrics: { costMicros: string; clicks: string; impressions: string } }
-  type CampaignRow = { campaign: { name: string }; metrics: { costMicros: string; clicks: string; impressions: string; conversionsValue: string } }
+  type DailyRow = { segments: { date: string }; metrics: { costMicros: string; clicks: string; impressions: string; phoneCalls: string } }
+  type CampaignRow = { campaign: { name: string; advertisingChannelType: string }; metrics: { costMicros: string; clicks: string; impressions: string; ctr: string; averageCpc: string; conversions: string; conversionsValue: string; costPerConversion: string; phoneCalls: string } }
   type KeywordRow = { adGroupCriterion: { keyword: { text: string; matchType: string } }; metrics: ApiMetrics }
   type SearchTermRow = { searchTermView: { searchTerm: string }; metrics: ApiMetrics }
 
@@ -171,10 +188,11 @@ export async function getAdsReportFromApi(
   for (const chunk of dailyStream) {
     for (const row of chunk.results ?? []) {
       const date = row.segments.date
-      const existing = dailyMap.get(date) ?? { date, spend: 0, clicks: 0, impressions: 0 }
+      const existing = dailyMap.get(date) ?? { date, spend: 0, clicks: 0, impressions: 0, phoneCalls: 0 }
       existing.spend += parseInt(row.metrics.costMicros ?? '0', 10) / 1_000_000
       existing.clicks += parseInt(row.metrics.clicks, 10)
       existing.impressions += parseInt(row.metrics.impressions, 10)
+      existing.phoneCalls += parseInt(row.metrics.phoneCalls ?? '0', 10)
       dailyMap.set(date, existing)
     }
   }
@@ -185,31 +203,46 @@ export async function getAdsReportFromApi(
       spend: acc.spend + d.spend,
       clicks: acc.clicks + d.clicks,
       impressions: acc.impressions + d.impressions,
-      cpc: 0,
-      roas: 0,
+      phoneCalls: acc.phoneCalls + d.phoneCalls,
+      cpc: 0, ctr: 0, roas: 0, conversions: 0, costPerConversion: 0,
     }),
-    { spend: 0, clicks: 0, impressions: 0, cpc: 0, roas: 0 }
+    { spend: 0, clicks: 0, impressions: 0, phoneCalls: 0, cpc: 0, ctr: 0, roas: 0, conversions: 0, costPerConversion: 0 }
   )
   overview.cpc = overview.clicks > 0 ? overview.spend / overview.clicks : 0
-  overview.roas = overview.spend > 0 ? overview.spend * 4.2 : 0 // placeholder until conversions wired
+  overview.ctr = overview.impressions > 0 ? (overview.clicks / overview.impressions) * 100 : 0
 
   const campaigns: AdsCampaign[] = []
+  let totalConversions = 0
+  let totalConversionsValue = 0
   for (const chunk of campaignStream) {
     for (const row of chunk.results ?? []) {
       const spend = parseInt(row.metrics.costMicros ?? '0', 10) / 1_000_000
       const clicks = parseInt(row.metrics.clicks, 10)
       const impressions = parseInt(row.metrics.impressions, 10)
+      const conversions = parseFloat(row.metrics.conversions ?? '0')
       const convValue = parseFloat(row.metrics.conversionsValue ?? '0')
+      const costPerConversion = parseInt(row.metrics.costPerConversion ?? '0', 10) / 1_000_000
+      const phoneCalls = parseInt(row.metrics.phoneCalls ?? '0', 10)
+      totalConversions += conversions
+      totalConversionsValue += convValue
       campaigns.push({
         name: row.campaign.name,
+        type: row.campaign.advertisingChannelType ?? '',
         spend,
         clicks,
         impressions,
         cpc: clicks > 0 ? spend / clicks : 0,
-        roas: spend > 0 ? convValue / spend : 0,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        conversions,
+        costPerConversion,
+        phoneCalls,
+        roas: spend > 0 && convValue > 0 ? convValue / spend : 0,
       })
     }
   }
+  overview.conversions = totalConversions
+  overview.costPerConversion = totalConversions > 0 ? overview.spend / totalConversions : 0
+  overview.roas = overview.spend > 0 && totalConversionsValue > 0 ? totalConversionsValue / overview.spend : 0
 
   function parseMetricsToKeyword(text: string, matchType: string, m: ApiMetrics): AdsKeyword {
     const cost = parseInt(m.costMicros ?? '0', 10) / 1_000_000
@@ -332,6 +365,7 @@ export async function getAdsReportFromGA4(
     spend: parseFloat(row.metricValues[0].value ?? '0'),
     clicks: parseInt(row.metricValues[1].value ?? '0', 10),
     impressions: parseInt(row.metricValues[2].value ?? '0', 10),
+    phoneCalls: 0,
   }))
 
   const overviewAcc = { spend: 0, clicks: 0, impressions: 0, conversions: 0, revenue: 0 }
@@ -358,21 +392,30 @@ export async function getAdsReportFromGA4(
       const revenue = parseFloat(row.metricValues[4].value ?? '0')
       return {
         name: row.dimensionValues[0].value,
+        type: '',
         spend: Math.round(spend * 100) / 100,
         clicks,
         impressions,
         cpc: clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : 0,
+        ctr: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
+        conversions: parseFloat(row.metricValues[3].value ?? '0'),
+        costPerConversion: 0,
+        phoneCalls: 0,
         roas: spend > 0 && revenue > 0 ? Math.round((revenue / spend) * 100) / 100 : 0,
       }
     })
 
-  const { spend, clicks, impressions } = overviewAcc
+  const { spend, clicks, impressions, conversions } = overviewAcc
   return {
     overview: {
       spend: Math.round(spend * 100) / 100,
       clicks,
       impressions,
       cpc: clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : 0,
+      ctr: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
+      conversions,
+      costPerConversion: conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : 0,
+      phoneCalls: 0,
       roas: spend > 0 && overviewAcc.revenue > 0
         ? Math.round((overviewAcc.revenue / spend) * 100) / 100
         : 0,
@@ -446,19 +489,24 @@ export function getAdsReportDummy(startDate: string, endDate: string): AdsReport
   let totalClicks = 0
   let totalImpressions = 0
 
+  let totalPhoneCalls = 0
+  let totalConversions = 0
   for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const seed = d.getTime() / 1_000_000
     const spend = Math.round((40 + seeded(seed) * 80) * 100) / 100
     const clicks = Math.floor(80 + seeded(seed + 1) * 120)
     const impressions = Math.floor(clicks * (8 + seeded(seed + 2) * 6))
-    daily.push({ date: d.toISOString().split('T')[0], spend, clicks, impressions })
+    const phoneCalls = Math.floor(seeded(seed + 3) * 8)
+    daily.push({ date: d.toISOString().split('T')[0], spend, clicks, impressions, phoneCalls })
     totalSpend += spend
     totalClicks += clicks
     totalImpressions += impressions
+    totalPhoneCalls += phoneCalls
+    totalConversions += Math.floor(seeded(seed + 4) * 5)
   }
 
   const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0
-  const roas = 4.2
+  const totalConvValue = totalSpend * 4.2
 
   return {
     overview: {
@@ -466,14 +514,18 @@ export function getAdsReportDummy(startDate: string, endDate: string): AdsReport
       clicks: totalClicks,
       impressions: totalImpressions,
       cpc: Math.round(cpc * 100) / 100,
-      roas,
+      ctr: totalImpressions > 0 ? Math.round((totalClicks / totalImpressions) * 10000) / 100 : 0,
+      roas: Math.round((totalConvValue / totalSpend) * 100) / 100,
+      conversions: totalConversions,
+      costPerConversion: totalConversions > 0 ? Math.round((totalSpend / totalConversions) * 100) / 100 : 0,
+      phoneCalls: totalPhoneCalls,
     },
     daily,
     campaigns: [
-      { name: 'Brand Keywords', spend: Math.round(totalSpend * 0.38 * 100) / 100, clicks: Math.floor(totalClicks * 0.38), impressions: Math.floor(totalImpressions * 0.3), cpc: 0.58, roas: 6.1 },
-      { name: 'Competitor Targeting', spend: Math.round(totalSpend * 0.27 * 100) / 100, clicks: Math.floor(totalClicks * 0.27), impressions: Math.floor(totalImpressions * 0.25), cpc: 1.24, roas: 3.8 },
-      { name: 'Generic Search', spend: Math.round(totalSpend * 0.22 * 100) / 100, clicks: Math.floor(totalClicks * 0.22), impressions: Math.floor(totalImpressions * 0.3), cpc: 1.85, roas: 2.9 },
-      { name: 'Display Remarketing', spend: Math.round(totalSpend * 0.13 * 100) / 100, clicks: Math.floor(totalClicks * 0.13), impressions: Math.floor(totalImpressions * 0.15), cpc: 0.62, roas: 5.2 },
+      { name: 'Brand Keywords', type: 'SEARCH', spend: Math.round(totalSpend * 0.38 * 100) / 100, clicks: Math.floor(totalClicks * 0.38), impressions: Math.floor(totalImpressions * 0.3), cpc: 0.58, ctr: 4.8, roas: 6.1, conversions: Math.floor(totalConversions * 0.4), costPerConversion: 32.4, phoneCalls: Math.floor(totalPhoneCalls * 0.4) },
+      { name: 'Competitor Targeting', type: 'SEARCH', spend: Math.round(totalSpend * 0.27 * 100) / 100, clicks: Math.floor(totalClicks * 0.27), impressions: Math.floor(totalImpressions * 0.25), cpc: 1.24, ctr: 3.2, roas: 3.8, conversions: Math.floor(totalConversions * 0.28), costPerConversion: 58.1, phoneCalls: Math.floor(totalPhoneCalls * 0.3) },
+      { name: 'Generic Search', type: 'SEARCH', spend: Math.round(totalSpend * 0.22 * 100) / 100, clicks: Math.floor(totalClicks * 0.22), impressions: Math.floor(totalImpressions * 0.3), cpc: 1.85, ctr: 2.1, roas: 2.9, conversions: Math.floor(totalConversions * 0.22), costPerConversion: 72.0, phoneCalls: Math.floor(totalPhoneCalls * 0.2) },
+      { name: 'Display Remarketing', type: 'DISPLAY', spend: Math.round(totalSpend * 0.13 * 100) / 100, clicks: Math.floor(totalClicks * 0.13), impressions: Math.floor(totalImpressions * 0.15), cpc: 0.62, ctr: 0.9, roas: 5.2, conversions: Math.floor(totalConversions * 0.1), costPerConversion: 88.5, phoneCalls: Math.floor(totalPhoneCalls * 0.1) },
     ],
     keywords: [
       { keyword: 'marketing analytics tool', matchType: 'BROAD', clicks: Math.floor(totalClicks * 0.12), impressions: Math.floor(totalImpressions * 0.10), ctr: 0.118, avgCpc: 1.24, cost: Math.round(totalSpend * 0.14 * 100) / 100, conversions: 8, conversionsValue: 420, viewThroughConversions: 2, conversionRate: 0.061, costPerConversion: 52.4, searchImpressionShare: 0.42, qualityScore: 7 },
