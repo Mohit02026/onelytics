@@ -18,7 +18,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: parsed.error.format() }, { status: 400 })
     }
 
-    const { email, password, name } = parsed.data
+    const { email: rawEmail, password, name } = parsed.data
+    const email = rawEmail.toLowerCase()
 
     const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
