@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { DollarSign, MousePointerClick, Eye, TrendingUp } from 'lucide-react'
+import { DollarSign, MousePointerClick, Eye, TrendingUp, Phone, Target } from 'lucide-react'
 import type { AdsOverview } from '@/services/google/ads'
 
 function fmt(n: number | null | undefined, decimals = 0) {
@@ -21,6 +21,7 @@ export function AdsOverviewCards({ data }: Props) {
       icon: DollarSign,
       color: 'text-blue-600 dark:text-blue-400',
       bg: 'bg-blue-50 dark:bg-blue-950',
+      sub: `CPC $${(data.cpc ?? 0).toFixed(2)}`,
     },
     {
       label: 'Clicks',
@@ -28,6 +29,7 @@ export function AdsOverviewCards({ data }: Props) {
       icon: MousePointerClick,
       color: 'text-purple-600 dark:text-purple-400',
       bg: 'bg-purple-50 dark:bg-purple-950',
+      sub: `CTR ${(data.ctr ?? 0).toFixed(2)}%`,
     },
     {
       label: 'Impressions',
@@ -37,17 +39,31 @@ export function AdsOverviewCards({ data }: Props) {
       bg: 'bg-orange-50 dark:bg-orange-950',
     },
     {
+      label: 'Conversions',
+      value: fmt(data.conversions ?? 0),
+      icon: Target,
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-950',
+      sub: data.costPerConversion ? `$${(data.costPerConversion).toFixed(2)}/conv` : undefined,
+    },
+    {
+      label: 'Phone Calls',
+      value: fmt(data.phoneCalls ?? 0),
+      icon: Phone,
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-50 dark:bg-green-950',
+    },
+    {
       label: 'ROAS',
       value: `${(data.roas ?? 0).toFixed(1)}x`,
       icon: TrendingUp,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-green-950',
-      sub: `CPC $${(data.cpc ?? 0).toFixed(2)}`,
+      color: 'text-indigo-600 dark:text-indigo-400',
+      bg: 'bg-indigo-50 dark:bg-indigo-950',
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">
@@ -61,7 +77,7 @@ export function AdsOverviewCards({ data }: Props) {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{card.sub}</p>
                 )}
               </div>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.bg}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ml-2 ${card.bg}`}>
                 <card.icon className={`w-4 h-4 ${card.color}`} />
               </div>
             </div>

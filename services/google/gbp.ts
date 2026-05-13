@@ -2,10 +2,11 @@ export interface GbpOverview {
   calls: number
   websiteClicks: number
   directionRequests: number
-  mapViews: number          // desktop + mobile map impressions
-  searchViews: number       // desktop + mobile search impressions
-  totalViews: number        // mapViews + searchViews
-  avgRating: number         // from reviews, 0 if unavailable
+  mapViews: number
+  searchViews: number
+  totalViews: number
+  photoViews: number
+  avgRating: number
   totalReviews: number
 }
 
@@ -16,11 +17,31 @@ export interface GbpDailyRow {
   directionRequests: number
   mapViews: number
   searchViews: number
+  photoViews: number
+}
+
+export interface GbpReview {
+  reviewId: string
+  reviewer: string
+  rating: number
+  comment: string
+  createTime: string
+  replied: boolean
+}
+
+export interface GbpPost {
+  name: string
+  summary: string
+  state: string
+  createTime: string
+  mediaUrl?: string
 }
 
 export interface GbpReport {
   overview: GbpOverview
   daily: GbpDailyRow[]
+  reviews: GbpReview[]
+  posts: GbpPost[]
 }
 
 export async function getGbpReportDummy(startDate: string, endDate: string): Promise<GbpReport> {
@@ -52,6 +73,7 @@ export async function getGbpReportDummy(startDate: string, endDate: string): Pro
     websiteClicks += wc
     directionRequests += dr
 
+    const pViews = Math.floor(Math.random() * 20) + (isWeekend ? 5 : 15)
     daily.push({
       date: d.toISOString().split('T')[0],
       calls: c,
@@ -59,9 +81,11 @@ export async function getGbpReportDummy(startDate: string, endDate: string): Pro
       directionRequests: dr,
       mapViews: mViews,
       searchViews: sViews,
+      photoViews: pViews,
     })
   }
 
+  const photoViews = daily.reduce((s, d) => s + d.photoViews, 0)
   return {
     overview: {
       calls,
@@ -70,10 +94,20 @@ export async function getGbpReportDummy(startDate: string, endDate: string): Pro
       mapViews,
       searchViews,
       totalViews: mapViews + searchViews,
+      photoViews,
       avgRating: 4.8,
       totalReviews: 124,
     },
     daily,
+    reviews: [
+      { reviewId: 'r1', reviewer: 'Jane Smith', rating: 5, comment: 'Excellent service, highly recommend!', createTime: new Date(Date.now() - 86400000 * 3).toISOString(), replied: true },
+      { reviewId: 'r2', reviewer: 'John D.', rating: 4, comment: 'Great experience overall.', createTime: new Date(Date.now() - 86400000 * 10).toISOString(), replied: false },
+      { reviewId: 'r3', reviewer: 'Sarah M.', rating: 5, comment: 'Very professional and friendly staff.', createTime: new Date(Date.now() - 86400000 * 18).toISOString(), replied: true },
+    ],
+    posts: [
+      { name: 'post/1', summary: 'Check out our latest offers this month!', state: 'LIVE', createTime: new Date(Date.now() - 86400000 * 5).toISOString() },
+      { name: 'post/2', summary: 'We are now accepting new appointments online.', state: 'LIVE', createTime: new Date(Date.now() - 86400000 * 12).toISOString() },
+    ],
   }
 }
 
@@ -118,7 +152,7 @@ export async function getGbpReportFromApi(
   
   // Correction: The API is GET. Let's build the URL properly.
   const params = new URLSearchParams()
-  ;['CALL_CLICKS', 'WEBSITE_CLICKS', 'BUSINESS_DIRECTION_REQUESTS', 'BUSINESS_IMPRESSIONS_DESKTOP_MAPS', 'BUSINESS_IMPRESSIONS_MOBILE_MAPS', 'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH', 'BUSINESS_IMPRESSIONS_MOBILE_SEARCH'].forEach(m => params.append('dailyMetrics', m))
+  ;['CALL_CLICKS', 'WEBSITE_CLICKS', 'BUSINESS_DIRECTION_REQUESTS', 'BUSINESS_IMPRESSIONS_DESKTOP_MAPS', 'BUSINESS_IMPRESSIONS_MOBILE_MAPS', 'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH', 'BUSINESS_IMPRESSIONS_MOBILE_SEARCH', 'BUSINESS_IMPRESSIONS_DESKTOP_PHOTOS', 'BUSINESS_IMPRESSIONS_MOBILE_PHOTOS'].forEach(m => params.append('dailyMetrics', m))
   
   const [sYear, sMonth, sDay] = startDate.split('-')
   const [eYear, eMonth, eDay] = endDate.split('-')
@@ -158,7 +192,8 @@ export async function getGbpReportFromApi(
       websiteClicks: 0,
       directionRequests: 0,
       mapViews: 0,
-      searchViews: 0
+      searchViews: 0,
+      photoViews: 0,
     })
     curr.setDate(curr.getDate() + 1)
   }
@@ -182,39 +217,60 @@ export async function getGbpReportFromApi(
       if (metric === 'BUSINESS_DIRECTION_REQUESTS') row.directionRequests += val
       if (metric === 'BUSINESS_IMPRESSIONS_DESKTOP_MAPS' || metric === 'BUSINESS_IMPRESSIONS_MOBILE_MAPS') row.mapViews += val
       if (metric === 'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH' || metric === 'BUSINESS_IMPRESSIONS_MOBILE_SEARCH') row.searchViews += val
+      if (metric === 'BUSINESS_IMPRESSIONS_DESKTOP_PHOTOS' || metric === 'BUSINESS_IMPRESSIONS_MOBILE_PHOTOS') row.photoViews += val
     }
   }
 
   const daily = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date))
   
-  let calls = 0, websiteClicks = 0, directionRequests = 0, mapViews = 0, searchViews = 0
+  let calls = 0, websiteClicks = 0, directionRequests = 0, mapViews = 0, searchViews = 0, photoViews = 0
   for (const row of daily) {
     calls += row.calls
     websiteClicks += row.websiteClicks
     directionRequests += row.directionRequests
     mapViews += row.mapViews
     searchViews += row.searchViews
+    photoViews += row.photoViews
   }
 
-  // 2. Fetch Reviews Data (Best effort)
+  // 2. Fetch Reviews + Posts (best effort, parallel)
   let avgRating = 0
   let totalReviews = 0
+  let reviews: GbpReview[] = []
+  let posts: GbpPost[] = []
 
-  try {
-    const reviewsRes = await fetch(`https://mybusiness.googleapis.com/v4/${locationName}/reviews?pageSize=1`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    })
-    if (reviewsRes.ok) {
-      const reviewsData = await reviewsRes.json()
-      if (reviewsData.averageRating) {
-        avgRating = parseFloat(reviewsData.averageRating)
-      }
-      if (reviewsData.totalReviewCount) {
-        totalReviews = parseInt(reviewsData.totalReviewCount, 10)
-      }
-    }
-  } catch (err) {
-    // Silently ignore review fetch errors
+  const [reviewsRes, postsRes] = await Promise.allSettled([
+    fetch(`https://mybusiness.googleapis.com/v4/${locationName}/reviews?pageSize=10`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+    fetch(`https://mybusiness.googleapis.com/v4/${locationName}/localPosts?pageSize=10`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+  ])
+
+  if (reviewsRes.status === 'fulfilled' && reviewsRes.value.ok) {
+    const reviewsData = await reviewsRes.value.json()
+    if (reviewsData.averageRating) avgRating = parseFloat(reviewsData.averageRating)
+    if (reviewsData.totalReviewCount) totalReviews = parseInt(reviewsData.totalReviewCount, 10)
+    reviews = (reviewsData.reviews ?? []).map((r: Record<string, unknown>) => ({
+      reviewId: String(r.reviewId ?? ''),
+      reviewer: String((r.reviewer as Record<string, unknown>)?.displayName ?? 'Anonymous'),
+      rating: ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE'].indexOf(String(r.starRating ?? 'FIVE')) + 1,
+      comment: String(r.comment ?? ''),
+      createTime: String(r.createTime ?? ''),
+      replied: !!(r.reviewReply),
+    }))
+  }
+
+  if (postsRes.status === 'fulfilled' && postsRes.value.ok) {
+    const postsData = await postsRes.value.json()
+    posts = (postsData.localPosts ?? []).map((p: Record<string, unknown>) => ({
+      name: String(p.name ?? ''),
+      summary: String(p.summary ?? ''),
+      state: String(p.state ?? ''),
+      createTime: String(p.createTime ?? ''),
+      mediaUrl: (p.media as Record<string, unknown>[])?.[0]?.googleUrl as string | undefined,
+    }))
   }
 
   return {
@@ -225,9 +281,12 @@ export async function getGbpReportFromApi(
       mapViews,
       searchViews,
       totalViews: mapViews + searchViews,
+      photoViews,
       avgRating,
-      totalReviews
+      totalReviews,
     },
-    daily
+    daily,
+    reviews,
+    posts,
   }
 }

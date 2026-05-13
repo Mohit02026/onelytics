@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { Eye, PhoneCall, MousePointerClick, Star, Navigation } from 'lucide-react'
+import { Eye, PhoneCall, MousePointerClick, Star, Navigation, Camera } from 'lucide-react'
 import type { GbpReport } from '@/services/google/gbp'
 
 function fmt(n: number | null | undefined) {
@@ -53,6 +53,13 @@ export function GbpOverviewCards({ data }: Props) {
       sub: data.totalReviews > 0 ? `${data.totalReviews} reviews` : undefined,
     },
     {
+      label: 'Photo Views',
+      value: fmt(data.photoViews ?? 0),
+      icon: Camera,
+      color: 'text-pink-600 dark:text-pink-400',
+      bg: 'bg-pink-50 dark:bg-pink-950',
+    },
+    {
       label: 'Total Reviews',
       value: data.totalReviews > 0 ? fmt(data.totalReviews) : '—',
       icon: Star,
@@ -61,11 +68,8 @@ export function GbpOverviewCards({ data }: Props) {
     },
   ]
 
-  // We only show 5 cards in a row usually, let's group or just show 5
-  // We can drop Total Reviews as its own card since it's in Avg Rating sub, or keep it. Let's make it 6 columns on lg.
-
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">

@@ -38,10 +38,20 @@ export interface MetaCampaign {
   videoViews: number
 }
 
+export interface MetaPlacement {
+  platform: string
+  position: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+}
+
 export interface MetaReport {
   overview: MetaOverview
   daily: MetaDailyRow[]
   campaigns: MetaCampaign[]
+  placements: MetaPlacement[]
   dateRange: { startDate: string; endDate: string }
 }
 
@@ -102,7 +112,8 @@ export async function getMetaReportFromApi(
   const timeRange = `{"since":"${startDate}","until":"${endDate}"}`
   const campaignInsightFields = `${insightFields},campaign_id,campaign_name`
 
-  const [dailyRes, campaignListRes, campaignInsightsRes] = await Promise.all([
+  const placementFields = 'spend,impressions,clicks,actions'
+  const [dailyRes, campaignListRes, campaignInsightsRes, placementRes] = await Promise.all([
     fetch(
       `${base}/${adAccountId}/insights?fields=${insightFields}&time_range=${timeRange}&time_increment=1&limit=90&access_token=${accessToken}`
     ),
@@ -111,6 +122,9 @@ export async function getMetaReportFromApi(
     ),
     fetch(
       `${base}/${adAccountId}/insights?fields=${campaignInsightFields}&time_range=${timeRange}&level=campaign&limit=50&access_token=${accessToken}`
+    ),
+    fetch(
+      `${base}/${adAccountId}/insights?fields=${placementFields}&time_range=${timeRange}&breakdowns=publisher_platform,platform_position&limit=50&access_token=${accessToken}`
     ),
   ])
 
@@ -124,6 +138,9 @@ export async function getMetaReportFromApi(
     campaignListRes.ok ? await campaignListRes.json() : { data: [] }
   const campaignInsightsData: { data: InsightRow[] } =
     campaignInsightsRes.ok ? await campaignInsightsRes.json() : { data: [] }
+  type PlacementRow = { publisher_platform?: string; platform_position?: string; spend?: string; impressions?: string; clicks?: string; actions?: { action_type: string; value: string }[] }
+  const placementData: { data: PlacementRow[] } =
+    placementRes.ok ? await placementRes.json() : { data: [] }
 
   const insightsByCampaignId = new Map<string, InsightRow>()
   for (const row of campaignInsightsData.data) {
@@ -175,6 +192,15 @@ export async function getMetaReportFromApi(
     }
   })
 
+  const placements: MetaPlacement[] = placementData.data.map((row) => ({
+    platform: row.publisher_platform ?? 'unknown',
+    position: row.platform_position ?? 'unknown',
+    spend: parseFloat(row.spend ?? '0'),
+    impressions: parseInt(row.impressions ?? '0', 10),
+    clicks: parseInt(row.clicks ?? '0', 10),
+    conversions: (row.actions ?? []).filter((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase' || a.action_type === 'lead').reduce((s, a) => s + parseFloat(a.value), 0),
+  }))
+
   return {
     overview: {
       spend: Math.round(overviewAcc.spend * 100) / 100,
@@ -191,6 +217,7 @@ export async function getMetaReportFromApi(
     },
     daily,
     campaigns,
+    placements,
     dateRange: { startDate, endDate },
   }
 }
@@ -273,6 +300,10 @@ export function getMetaReportDummy(startDate: string, endDate: string): MetaRepo
         cpa: Math.round((totalSpend * 0.18) / Math.max(1, Math.floor(totalConversions * 0.13)) * 100) / 100,
         roas: 2.9, videoViews: 0,
       },
+    ],
+    placements: [
+      { platform: 'facebook', position: 'feed', spend: 0, impressions: 0, clicks: 0, conversions: 0 },
+      { platform: 'instagram', position: 'stream', spend: 0, impressions: 0, clicks: 0, conversions: 0 },
     ],
     dateRange: { startDate, endDate },
   }
