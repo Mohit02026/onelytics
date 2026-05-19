@@ -3,27 +3,30 @@ import { authConfig } from './auth.config';
 import { NextResponse, type NextRequest } from 'next/server';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { createHmac } from 'crypto';
-
 const { auth } = NextAuth(authConfig);
 
-function verifyAdminCookie(token: string): boolean {
+async function verifyAdminCookie(token: string): Promise<boolean> {
   const secret = process.env.ADMIN_SECRET ?? 'dev-admin-secret'
   const [payload, sig] = token.split('.')
   if (!payload || !sig) return false
-  const expected = createHmac('sha256', secret).update(payload).digest('hex')
-  if (sig !== expected) return false
   try {
-    const { exp } = JSON.parse(Buffer.from(payload, 'base64').toString())
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    )
+    const sigBytes = await crypto.subtle.sign('HMAC', key, enc.encode(payload))
+    const expected = Array.from(new Uint8Array(sigBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
+    if (sig !== expected) return false
+    const { exp } = JSON.parse(atob(payload))
     return Date.now() < exp
   } catch { return false }
 }
 
-function handleAdminRoutes(req: NextRequest) {
+async function handleAdminRoutes(req: NextRequest) {
   const { pathname } = req.nextUrl
   const isAdminLogin = pathname === '/admin/login'
   const adminToken = req.cookies.get('admin_token')?.value
-  const isValidAdmin = adminToken ? verifyAdminCookie(adminToken) : false
+  const isValidAdmin = adminToken ? await verifyAdminCookie(adminToken) : false
 
   if (isAdminLogin) {
     if (isValidAdmin) return NextResponse.redirect(new URL('/admin', req.url))
@@ -70,6 +73,8 @@ export default auth(async (req) => {
   const isPublic =
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/invite/') ||
+    pathname.startsWith('/portal') ||
+    pathname.startsWith('/api/portal') ||
     pathname === '/api/health' ||
     pathname === '/login' ||
     pathname === '/register'

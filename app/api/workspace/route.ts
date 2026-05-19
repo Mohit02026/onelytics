@@ -2,7 +2,13 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { getMembership, canManageMembers } from '@/lib/workspace'
 import { z } from 'zod'
-import { randomBytes } from 'crypto'
+import { randomBytes, scryptSync } from 'crypto'
+
+function hashPortalPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex')
+  const hash = scryptSync(password, salt, 64).toString('hex')
+  return `${salt}:${hash}`
+}
 
 const WORKSPACE_SELECT = {
   id: true,
@@ -62,8 +68,12 @@ export async function PATCH(req: Request) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { portalEnabled, ...rest } = parsed.data
+  const { portalEnabled, portalPassword, ...rest } = parsed.data
   const updateData: Record<string, unknown> = { ...rest }
+
+  if (portalPassword !== undefined) {
+    updateData.portalPassword = portalPassword !== null ? hashPortalPassword(portalPassword) : null
+  }
 
   // Auto-generate portal token when enabling portal for the first time
   if (portalEnabled === true) {
