@@ -16,7 +16,6 @@ import {
   Music2,
   Briefcase,
   FileText,
-  Building2,
   Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -31,8 +30,7 @@ const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Google Analytics', href: '/ga4', icon: BarChart3 },
   { name: 'Google Ads', href: '/google-ads', icon: Activity },
-  { name: 'Search Console', href: '/search-console', icon: Search },
-  { name: 'Google Business', href: '/google-business', icon: Building2 },
+  { name: 'SEO', href: '/seo', icon: Search },
   { name: 'WordPress', href: '/wordpress', icon: Globe },
   { name: 'Meta Ads', href: '/meta-ads', icon: Share2 },
   { name: 'TikTok Ads', href: '/tiktok-ads', icon: Music2 },

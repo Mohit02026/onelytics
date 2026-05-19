@@ -6,18 +6,21 @@ import { MetaOverviewCards } from '@/components/analytics/meta-overview-cards'
 import { MetaSpendChart } from '@/components/analytics/meta-spend-chart'
 import { MetaCampaignsTable } from '@/components/analytics/meta-campaigns-table'
 import { MetaPlacementTable } from '@/components/analytics/meta-placement-table'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
 import { Button } from '@/components/ui/button'
 import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Share2, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { MetaReport } from '@/services/meta/ads'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
 
 export default function MetaAdsPage() {
   const [status, setStatus] = useState<Status>('loading')
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
   const [report, setReport] = useState<MetaReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -82,6 +85,7 @@ export default function MetaAdsPage() {
           <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => fetchReport(dateRange)} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
+          <GranularityPicker value={granularity} onChange={setGranularity} />
           <ExportPdfButton platform="meta" startDate={dateRange.startDate} endDate={dateRange.endDate} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
@@ -91,7 +95,7 @@ export default function MetaAdsPage() {
 
       {report && (
         <div className="space-y-6">
-          <MetaSpendChart data={report.daily} />
+          <MetaSpendChart data={aggregateRows(report.daily, granularity)} />
           <MetaCampaignsTable campaigns={report.campaigns} />
           {report.placements?.length > 0 && <MetaPlacementTable placements={report.placements} />}
         </div>

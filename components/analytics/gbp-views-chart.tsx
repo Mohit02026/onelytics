@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
 import type { GbpDailyRow } from '@/services/google/gbp'
 
 interface Props {
@@ -60,6 +60,7 @@ export function GbpViewsChart({ data }: Props) {
               itemStyle={{ color: '#f3f4f6' }}
               labelStyle={{ color: '#9ca3af', marginBottom: '4px' }}
             />
+            <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
             <Area
               type="monotone"
               dataKey="mapViews"

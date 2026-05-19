@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tag } from 'lucide-react'
 import type { WpCategory } from '@/services/wordpress'
 
@@ -16,8 +16,9 @@ export function WpCategoriesTable({ categories }: Props) {
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Tag className="w-4 h-4 text-gray-500" />
-          Categories
+          Posts by Category
         </CardTitle>
+        <CardDescription>Number of published posts in each category</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {categories.map((c) => (
