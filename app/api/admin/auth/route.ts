@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
 
-function makeAdminToken(): string {
+async function makeAdminToken(): Promise<string> {
   const secret = process.env.ADMIN_SECRET ?? 'dev-admin-secret'
-  const payload = Buffer.from(JSON.stringify({ exp: Date.now() + 7 * 24 * 60 * 60 * 1000 })).toString('base64')
-  const sig = createHmac('sha256', secret).update(payload).digest('hex')
+  const payload = btoa(JSON.stringify({ exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }))
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  )
+  const sigBytes = await crypto.subtle.sign('HMAC', key, enc.encode(payload))
+  const sig = Array.from(new Uint8Array(sigBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
   return `${payload}.${sig}`
 }
 
@@ -22,7 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
   }
 
-  const token = makeAdminToken()
+  const token = await makeAdminToken()
   const res = NextResponse.json({ ok: true })
   res.cookies.set('admin_token', token, {
     httpOnly: true,

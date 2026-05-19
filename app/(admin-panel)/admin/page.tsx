@@ -177,7 +177,7 @@ function StatCard({ label, value, icon }: { label: string; value: number; icon: 
         <span className="text-xs text-gray-500 uppercase tracking-wider">{label}</span>
         <div className="text-gray-600">{icon}</div>
       </div>
-      <p className="text-3xl font-bold tabular-nums">{value.toLocaleString()}</p>
+      <p className="text-3xl font-bold tabular-nums">{(value ?? 0).toLocaleString()}</p>
     </div>
   )
 }
@@ -231,8 +231,8 @@ function OrgsTab({ rows, onDelete }: { rows: OrgRow[]; onDelete: (r: OrgRow) => 
         {rows.map(r => (
           <tr key={r.id} className="hover:bg-gray-800/30">
             <Td><span className="font-medium text-white">{r.name}</span><span className="block text-xs text-gray-600 font-mono">{r.id}</span></Td>
-            <Td className="text-gray-400">{r._count.workspaces}</Td>
-            <Td className="text-gray-400">{r._count.members}</Td>
+            <Td className="text-gray-400">{r._count?.workspaces ?? 0}</Td>
+            <Td className="text-gray-400">{r._count?.members ?? 0}</Td>
             <Td className="text-gray-500">{fmt(r.createdAt)}</Td>
             <Td><DeleteBtn onClick={() => onDelete(r)} /></Td>
           </tr>
@@ -254,9 +254,9 @@ function WorkspacesTab({ rows, onDelete }: { rows: WorkspaceRow[]; onDelete: (r:
           <tr key={r.id} className="hover:bg-gray-800/30">
             <Td><span className="font-medium text-white">{r.name}</span><span className="block text-xs text-gray-600 font-mono">{r.id}</span></Td>
             <Td className="text-gray-400">{r.organization?.name ?? <span className="text-gray-700">—</span>}</Td>
-            <Td className="text-gray-400">{r._count.members}</Td>
-            <Td className="text-gray-400">{r._count.reports}</Td>
-            <Td className="text-gray-400">{r._count.connectedAccounts}</Td>
+            <Td className="text-gray-400">{r._count?.members ?? 0}</Td>
+            <Td className="text-gray-400">{r._count?.reports ?? 0}</Td>
+            <Td className="text-gray-400">{r._count?.connectedAccounts ?? 0}</Td>
             <Td className="text-gray-500">{fmt(r.createdAt)}</Td>
             <Td><DeleteBtn onClick={() => onDelete(r)} /></Td>
           </tr>
@@ -282,8 +282,8 @@ function UsersTab({ rows, onDelete }: { rows: UserRow[]; onDelete: (r: UserRow) 
             </Td>
             <Td className="text-gray-400">{r.workspace?.name ?? <span className="text-gray-700">—</span>}</Td>
             <Td>
-              {r.orgMemberships.length > 0
-                ? r.orgMemberships.map((m, i) => (
+              {(r.orgMemberships ?? []).length > 0
+                ? (r.orgMemberships ?? []).map((m, i) => (
                     <span key={i} className="block text-xs text-gray-400">
                       {m.organization.name} <span className="text-gray-600">({m.role})</span>
                     </span>

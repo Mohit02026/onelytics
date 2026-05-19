@@ -38,7 +38,12 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid name' }, { status: 400 })
 
   const workspace = await prisma.$transaction(async (tx) => {
-    const ws = await tx.workspace.create({ data: { name: parsed.data.name } })
+    const ws = await tx.workspace.create({
+      data: {
+        name: parsed.data.name,
+        organizationId: session.user.organizationId ?? undefined,
+      },
+    })
     await tx.workspaceMember.create({
       data: { workspaceId: ws.id, userId: session.user.id, role: 'OWNER' },
     })

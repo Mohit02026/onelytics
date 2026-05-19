@@ -40,6 +40,9 @@ next-env.d.ts
 
 #md
 *.md
+
+# dev scripts — not needed in production
+/scripts
 !README.md
 .agent/
 .claude/

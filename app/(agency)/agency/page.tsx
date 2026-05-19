@@ -25,7 +25,7 @@ interface OrgData {
 }
 
 export default function AgencyPage() {
-  const { data: session, update } = useSession()
+  const { update } = useSession()
   const router = useRouter()
   const [data, setData] = useState<OrgData | null>(null)
   const [loading, setLoading] = useState(true)

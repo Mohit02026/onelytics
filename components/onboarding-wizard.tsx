@@ -14,14 +14,14 @@ const STEPS = [
 ]
 
 export function OnboardingWizard() {
-  const { data: session, update } = useSession()
+  const { data: session, status, update } = useSession()
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [orgName, setOrgName] = useState('')
   const [workspaceName, setWorkspaceName] = useState('')
   const [saving, setSaving] = useState(false)
 
-  if (session?.user?.onboarded) return null
+  if (status === 'loading' || session?.user?.onboarded) return null
 
   async function finish(goConnect = false) {
     setSaving(true)

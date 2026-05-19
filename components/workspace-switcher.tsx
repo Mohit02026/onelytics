@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, Check, Plus, Loader2, Building2 } from 'lucide-react'
+import { ChevronDown, Check, Plus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface WorkspaceOption {
@@ -26,6 +26,10 @@ export function WorkspaceSwitcher() {
   const [newName, setNewName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    loadWorkspaces()
+  }, [])
 
   useEffect(() => {
     if (open) loadWorkspaces()
@@ -63,8 +67,8 @@ export function WorkspaceSwitcher() {
         body: JSON.stringify({ workspaceId }),
       })
       if (res.ok) {
-        // Update the JWT token to reflect the new workspace
         await update({ workspaceId })
+        await loadWorkspaces()
         setOpen(false)
         router.refresh()
       }
