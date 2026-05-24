@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { LinkedInOverviewCards } from '@/components/analytics/linkedin-overview-cards'
@@ -8,8 +8,10 @@ import { LinkedInSpendChart } from '@/components/analytics/linkedin-spend-chart'
 import { LinkedInCampaignsTable } from '@/components/analytics/linkedin-campaigns-table'
 import { LinkedInDemographics } from '@/components/analytics/linkedin-demographics'
 import { DateRangePicker } from '@/components/analytics/date-range-picker'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
 import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import type { LinkedInReport } from '@/services/linkedin/ads'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 import { Loader2, Briefcase } from 'lucide-react'
 
 function skeleton(cls: string) {
@@ -21,6 +23,12 @@ export default function LinkedInAdsPage() {
   const [report, setReport] = useState<LinkedInReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [notConnected, setNotConnected] = useState(false)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
+
+  const dailyAggregated = useMemo(
+    () => aggregateRows(report?.daily ?? [], granularity),
+    [report, granularity]
+  )
 
   useEffect(() => {
     const end = new Date()
@@ -72,6 +80,7 @@ export default function LinkedInAdsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400">B2B campaign performance</p>
         </div>
         <ExportPdfButton platform="linkedin" startDate={range.startDate} endDate={range.endDate} />
+        <GranularityPicker value={granularity} onChange={setGranularity} />
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
@@ -87,14 +96,13 @@ export default function LinkedInAdsPage() {
       ) : null}
 
       {/* Spend chart */}
-      <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-base">Daily Spend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? skeleton('h-64 w-full') : report ? <LinkedInSpendChart data={report.daily} /> : null}
-        </CardContent>
-      </Card>
+      {loading ? (
+        <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <CardContent className="pt-6">{skeleton('h-64 w-full')}</CardContent>
+        </Card>
+      ) : report ? (
+        <LinkedInSpendChart data={dailyAggregated} />
+      ) : null}
 
       {/* Campaigns table */}
       <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">

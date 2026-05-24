@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { TikTokOverviewCards } from '@/components/analytics/tiktok-overview-cards'
 import { TikTokSpendChart } from '@/components/analytics/tiktok-spend-chart'
 import { TikTokCampaignsTable } from '@/components/analytics/tiktok-campaigns-table'
 import { DateRangePicker } from '@/components/analytics/date-range-picker'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
 import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import type { TikTokReport } from '@/services/tiktok/ads'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 import { Loader2, Music2 } from 'lucide-react'
 
 function skeleton(cls: string) {
@@ -20,6 +22,12 @@ export default function TikTokAdsPage() {
   const [report, setReport] = useState<TikTokReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [notConnected, setNotConnected] = useState(false)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
+
+  const dailyAggregated = useMemo(
+    () => aggregateRows(report?.daily ?? [], granularity),
+    [report, granularity]
+  )
 
   useEffect(() => {
     const end = new Date()
@@ -71,6 +79,7 @@ export default function TikTokAdsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Performance across campaigns</p>
         </div>
         <ExportPdfButton platform="tiktok" startDate={range.startDate} endDate={range.endDate} />
+        <GranularityPicker value={granularity} onChange={setGranularity} />
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
@@ -86,14 +95,13 @@ export default function TikTokAdsPage() {
       ) : null}
 
       {/* Spend chart */}
-      <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-base">Daily Spend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? skeleton('h-64 w-full') : report ? <TikTokSpendChart data={report.daily} /> : null}
-        </CardContent>
-      </Card>
+      {loading ? (
+        <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <CardContent className="pt-6">{skeleton('h-64 w-full')}</CardContent>
+        </Card>
+      ) : report ? (
+        <TikTokSpendChart data={dailyAggregated} />
+      ) : null}
 
       {/* Campaigns table */}
       <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-range-picker'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
 import { Ga4OverviewCards } from '@/components/analytics/overview-cards'
 import { SessionsChart } from '@/components/analytics/sessions-chart'
 import { TrafficSourcesChart } from '@/components/analytics/traffic-sources-chart'
@@ -12,6 +13,7 @@ import { BarChart3, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { Ga4Report } from '@/services/google/ga4'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
 
@@ -20,6 +22,12 @@ export default function Ga4Page() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [report, setReport] = useState<Ga4Report | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
+
+  const dailyAggregated = useMemo(
+    () => aggregateRows(report?.daily ?? [], granularity),
+    [report, granularity]
+  )
 
   const fetchReport = useCallback(
     async (range: DateRange) => {
@@ -108,6 +116,7 @@ export default function Ga4Page() {
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <ExportPdfButton platform="ga4" startDate={dateRange.startDate} endDate={dateRange.endDate} />
+          <GranularityPicker value={granularity} onChange={setGranularity} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
@@ -119,7 +128,7 @@ export default function Ga4Page() {
       {report && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2">
-            <SessionsChart data={report.daily} />
+            <SessionsChart data={dailyAggregated} />
           </div>
           <div>
             <TrafficSourcesChart data={report.trafficSources} />

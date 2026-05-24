@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-range-picker'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 import { AdsOverviewCards } from '@/components/analytics/ads-overview-cards'
 import { AdsSpendChart } from '@/components/analytics/ads-spend-chart'
 import { AdsCampaignsTable } from '@/components/analytics/ads-campaigns-table'
@@ -25,6 +27,12 @@ export default function GoogleAdsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('campaigns')
   const [volumes, setVolumes] = useState<Record<string, number> | undefined>(undefined)
   const [snapshot, setSnapshot] = useState<AdsKeywordSnapshotMap | undefined>(undefined)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
+
+  const dailyAggregated = useMemo(
+    () => aggregateRows(report?.daily ?? [], granularity),
+    [report, granularity]
+  )
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -116,6 +124,7 @@ export default function GoogleAdsPage() {
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <ExportPdfButton platform="googleAds" startDate={dateRange.startDate} endDate={dateRange.endDate} />
+          <GranularityPicker value={granularity} onChange={setGranularity} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
@@ -134,7 +143,7 @@ export default function GoogleAdsPage() {
 
       {report && (
         <div className="space-y-6">
-          <AdsSpendChart data={report.daily} />
+          <AdsSpendChart data={dailyAggregated} />
 
           {/* Campaigns / Keywords tabs */}
           <div>
