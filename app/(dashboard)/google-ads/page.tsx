@@ -42,9 +42,15 @@ export default function GoogleAdsPage() {
       setReport(data)
       setStatus('loaded')
       setVolumes(undefined)
-      // Fire-and-forget keyword volume fetch
+      // Fire-and-forget keyword volume fetch — top 20 by clicks only (quota protection)
       if (data.keywords && data.keywords.length > 0) {
-        const kwList = data.keywords.map((k) => k.keyword).join(',')
+        const top20 = data.keywords
+          .slice()
+          .sort((a, b) => b.clicks - a.clicks)
+          .slice(0, 20)
+          .map((k) => k.keyword)
+          .filter((kw, i, arr) => kw && arr.indexOf(kw) === i)
+        const kwList = top20.join(',')
         fetch(`/api/analytics/keyword-volume?keywords=${encodeURIComponent(kwList)}`)
           .then((r) => r.ok ? r.json() : null)
           .then((v) => { if (v) setVolumes(v) })

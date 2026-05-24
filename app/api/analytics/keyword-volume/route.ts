@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { encrypt, decrypt } from '@/lib/encryption'
@@ -54,8 +55,8 @@ export async function GET(req: Request) {
   const customerId = meta?.googleAdsCustomerId ?? ''
   if (!customerId) return Response.json({ error: 'Google Ads customer ID not set' }, { status: 404 })
 
-  // Cache key: sorted unique keywords, 24hr TTL
-  const cacheKey = keywords.slice().sort().join(',').slice(0, 800)
+  // Cache key: SHA-256 hash of sorted unique keywords, 24hr TTL
+  const cacheKey = createHash('sha256').update(keywords.slice().sort().join(',')).digest('hex')
   const cached = await prisma.analyticsCache.findUnique({
     where: {
       workspaceId_provider_dataType_dateRange: {

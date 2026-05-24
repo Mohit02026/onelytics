@@ -508,36 +508,44 @@ export async function getKeywordVolumes(
   const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN!
   const url = `https://googleads.googleapis.com/v24/customers/${customerId}:generateKeywordIdeas`
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'developer-token': devToken,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      keywordSeed: { keywords },
-      includeAdultKeywords: false,
-      language: 'languageConstants/1000',
-      keywordPlanNetwork: 'GOOGLE_SEARCH',
-    }),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    throw new Error(`Keyword Planner error ${res.status}: ${errText.slice(0, 300)}`)
-  }
-
-  const data: {
-    results?: { text: string; keywordIdeaMetrics?: { avgMonthlySearches?: string } }[]
-  } = await res.json()
-
+  // Keyword Planner API accepts max 10 seed keywords per request
+  const BATCH_SIZE = 10
   const map: Record<string, number> = {}
-  for (const r of data.results ?? []) {
-    if (r.text && r.keywordIdeaMetrics?.avgMonthlySearches) {
-      map[r.text.toLowerCase()] = parseInt(r.keywordIdeaMetrics.avgMonthlySearches, 10)
+
+  for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+    const batch = keywords.slice(i, i + BATCH_SIZE)
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token': devToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keywordSeed: { keywords: batch },
+        includeAdultKeywords: false,
+        language: 'languageConstants/1000',
+        keywordPlanNetwork: 'GOOGLE_SEARCH',
+      }),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      throw new Error(`Keyword Planner error ${res.status}: ${errText.slice(0, 300)}`)
+    }
+
+    const data: {
+      results?: { text: string; keywordIdeaMetrics?: { avgMonthlySearches?: string } }[]
+    } = await res.json()
+
+    for (const r of data.results ?? []) {
+      if (r.text && r.keywordIdeaMetrics?.avgMonthlySearches) {
+        map[r.text.toLowerCase()] = parseInt(r.keywordIdeaMetrics.avgMonthlySearches, 10)
+      }
     }
   }
+
   return map
 }
 
