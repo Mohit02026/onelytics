@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { GscKeyword } from '@/services/google/gsc'
 
@@ -5,6 +8,9 @@ interface Props {
   keywords: GscKeyword[]
   volumes?: Record<string, number>
 }
+
+type SortKey = 'clicks' | 'impressions' | 'ctr' | 'position' | 'positionChange'
+type SortDir = 'asc' | 'desc'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
@@ -25,15 +31,47 @@ function fmtVolume(n: number) {
   return n.toLocaleString()
 }
 
+function SortTh({ label, field, cur, dir, onSort, className = '' }: {
+  label: string; field: string; cur: string; dir: SortDir; onSort: (f: string) => void; className?: string
+}) {
+  const active = cur === field
+  return (
+    <th
+      onClick={() => onSort(field)}
+      className={`px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 ${className}`}
+    >
+      {label} <span className={`text-[10px] ${active ? '' : 'opacity-30'}`}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </th>
+  )
+}
+
+const PAGE_SIZE = 20
+
 export function GscKeywordsTable({ keywords, volumes }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>('clicks')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [shown, setShown] = useState(PAGE_SIZE)
+
+  function handleSort(field: string) {
+    if (field === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(field as SortKey); setSortDir(field === 'position' ? 'asc' : 'desc') }
+  }
+
+  const sorted = [...keywords].sort((a, b) => {
+    const av = a[sortKey] ?? 0
+    const bv = b[sortKey] ?? 0
+    const v = (av as number) - (bv as number)
+    return sortDir === 'asc' ? v : -v
+  })
+  const visible = sorted.slice(0, shown)
+  const hasMore = shown < sorted.length
+
   return (
     <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Top Keywords
-          </CardTitle>
-          <span className="text-xs text-gray-400">Showing {keywords.length} rows</span>
+          <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Top Keywords</CardTitle>
+          <span className="text-xs text-gray-400">Showing {visible.length} of {keywords.length}</span>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -42,37 +80,29 @@ export function GscKeywordsTable({ keywords, volumes }: Props) {
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Keyword</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clicks</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Impressions</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">CTR</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Position</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Change</th>
+                <SortTh label="Clicks" field="clicks" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Impressions" field="impressions" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="CTR" field="ctr" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Position" field="position" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Change" field="positionChange" cur={sortKey} dir={sortDir} onSort={handleSort} />
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Volume</th>
               </tr>
             </thead>
             <tbody>
-              {keywords.map((k, i) => {
+              {visible.map((k, i) => {
                 const notFound = !k.position || k.position === 0
                 const vol = volumes?.[k.query.toLowerCase()]
                 const change = k.positionChange !== undefined ? Math.round(k.positionChange) : undefined
-
                 return (
-                  <tr
-                    key={i}
-                    className="border-b last:border-0 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
-                  >
+                  <tr key={i} className="border-b last:border-0 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white max-w-[260px]">
                       <span className="block truncate">{k.query}</span>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                      {k.clicks.toLocaleString()}
-                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">{k.clicks.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
                       {k.impressions >= 1000 ? `${(k.impressions / 1000).toFixed(1)}K` : k.impressions.toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                      {(k.ctr * 100).toFixed(1)}%
-                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">{(k.ctr * 100).toFixed(1)}%</td>
                     <td className={`px-4 py-3 text-right font-semibold ${notFound ? 'text-gray-400 italic' : positionColor(k.position)}`}>
                       {notFound ? 'not found' : (
                         <span>
@@ -99,6 +129,13 @@ export function GscKeywordsTable({ keywords, volumes }: Props) {
             </tbody>
           </table>
         </div>
+        {hasMore && (
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-center">
+            <button onClick={() => setShown(s => s + PAGE_SIZE)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium">
+              Show more ({sorted.length - shown} remaining)
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

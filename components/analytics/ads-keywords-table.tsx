@@ -16,6 +16,23 @@ const MATCH_BADGE: Record<string, string> = {
   SEARCH_TERM: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
 }
 
+type SortKey = 'clicks' | 'cost' | 'impressions' | 'avgCpc' | 'conversionRate' | 'conversions' | 'searchImpressionShare' | 'qualityScore'
+type SortDir = 'asc' | 'desc'
+
+function SortTh({ label, field, cur, dir, onSort, className = '' }: {
+  label: string; field: string; cur: string; dir: SortDir; onSort: (f: string) => void; className?: string
+}) {
+  const active = cur === field
+  return (
+    <th
+      onClick={() => onSort(field)}
+      className={`px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 ${className}`}
+    >
+      {label} <span className={`text-[10px] ${active ? '' : 'opacity-30'}`}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </th>
+  )
+}
+
 const PAGE_SIZE = 50
 
 function fmtMoney(n: number) {
@@ -52,6 +69,13 @@ function QsBar({ score }: { score: number }) {
 
 export function AdsKeywordsTable({ keywords, volumes }: Props) {
   const [shown, setShown] = useState(PAGE_SIZE)
+  const [sortKey, setSortKey] = useState<SortKey>('clicks')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(field: string) {
+    if (field === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(field as SortKey); setSortDir('desc') }
+  }
 
   if (keywords.length === 0) {
     return (
@@ -68,8 +92,14 @@ export function AdsKeywordsTable({ keywords, volumes }: Props) {
     )
   }
 
-  const visible = keywords.slice(0, shown)
-  const hasMore = shown < keywords.length
+  const sorted = [...keywords].sort((a, b) => {
+    const av = a[sortKey] ?? 0
+    const bv = b[sortKey] ?? 0
+    const v = (av as number) - (bv as number)
+    return sortDir === 'asc' ? v : -v
+  })
+  const visible = sorted.slice(0, shown)
+  const hasMore = shown < sorted.length
 
   return (
     <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
@@ -86,16 +116,16 @@ export function AdsKeywordsTable({ keywords, volumes }: Props) {
               <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Keyword</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">View Conv.</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Avg CPC</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clicks</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Conv. Rate</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Conv.</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cost</th>
+                <SortTh label="Avg CPC" field="avgCpc" cur={sortKey} dir={sortDir} onSort={handleSort} className="whitespace-nowrap" />
+                <SortTh label="Clicks" field="clicks" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Conv. Rate" field="conversionRate" cur={sortKey} dir={sortDir} onSort={handleSort} className="whitespace-nowrap" />
+                <SortTh label="Conv." field="conversions" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Cost" field="cost" cur={sortKey} dir={sortDir} onSort={handleSort} />
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Cost/Conv.</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Impressions</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Imp. Share</th>
+                <SortTh label="Impressions" field="impressions" cur={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Imp. Share" field="searchImpressionShare" cur={sortKey} dir={sortDir} onSort={handleSort} className="whitespace-nowrap" />
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Volume</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Quality</th>
+                <SortTh label="Quality" field="qualityScore" cur={sortKey} dir={sortDir} onSort={handleSort} className="whitespace-nowrap" />
               </tr>
             </thead>
             <tbody>
@@ -148,7 +178,7 @@ export function AdsKeywordsTable({ keywords, volumes }: Props) {
               onClick={() => setShown((s) => s + PAGE_SIZE)}
               className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
-              Show more ({keywords.length - shown} remaining)
+              Show more ({sorted.length - shown} remaining)
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { GbpPost } from '@/services/google/gbp'
 
@@ -9,11 +10,8 @@ interface Props {
 
 function fmtDate(iso: string) {
   if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  } catch {
-    return '—'
-  }
+  try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+  catch { return '—' }
 }
 
 const STATE_BADGE: Record<string, string> = {
@@ -22,7 +20,11 @@ const STATE_BADGE: Record<string, string> = {
   PROCESSING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400',
 }
 
+const PAGE_SIZE = 10
+
 export function GbpPostsTable({ posts }: Props) {
+  const [shown, setShown] = useState(PAGE_SIZE)
+
   if (posts.length === 0) {
     return (
       <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
@@ -36,12 +38,16 @@ export function GbpPostsTable({ posts }: Props) {
     )
   }
 
+  // Posts arrive newest-first from the API; maintain that order
+  const visible = posts.slice(0, shown)
+  const hasMore = shown < posts.length
+
   return (
     <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Posts</CardTitle>
-          <span className="text-xs text-gray-400">{posts.length} posts</span>
+          <span className="text-xs text-gray-400">Showing {visible.length} of {posts.length}</span>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -55,17 +61,12 @@ export function GbpPostsTable({ posts }: Props) {
               </tr>
             </thead>
             <tbody>
-              {posts.map((p, i) => (
-                <tr
-                  key={p.name || i}
-                  className="border-b last:border-0 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40"
-                >
+              {visible.map((p, i) => (
+                <tr key={p.name || i} className="border-b last:border-0 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{fmtDate(p.createTime)}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-md">
                     <div className="flex items-center gap-3">
-                      {p.mediaUrl && (
-                        <img src={p.mediaUrl} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
-                      )}
+                      {p.mediaUrl && <img src={p.mediaUrl} alt="" className="w-10 h-10 rounded object-cover shrink-0" />}
                       <span className="line-clamp-2">{p.summary || '—'}</span>
                     </div>
                   </td>
@@ -79,6 +80,13 @@ export function GbpPostsTable({ posts }: Props) {
             </tbody>
           </table>
         </div>
+        {hasMore && (
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-center">
+            <button onClick={() => setShown(s => s + PAGE_SIZE)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium">
+              Show more ({posts.length - shown} remaining)
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

@@ -1,61 +1,103 @@
 'use client'
 
+import { useState } from 'react'
 import type { LinkedInCampaign } from '@/services/linkedin/ads'
 
 interface Props {
   campaigns: LinkedInCampaign[]
 }
 
+type SortKey = 'spend' | 'impressions' | 'clicks' | 'ctr' | 'conversions' | 'likes' | 'comments' | 'shares'
+type SortDir = 'asc' | 'desc'
+
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === 'ACTIVE'
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-        isActive
-          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-      }`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${isActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
       {isActive ? 'Active' : 'Paused'}
     </span>
   )
 }
 
-export function LinkedInCampaignsTable({ campaigns }: Props) {
+function SortTh({ label, field, cur, dir, onSort }: {
+  label: string; field: string; cur: string; dir: SortDir; onSort: (f: string) => void
+}) {
+  const active = cur === field
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-100 dark:border-gray-800">
-            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Campaign</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Spend</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Impressions</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Clicks</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">CTR</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Conversions</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Likes</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Comments</th>
-            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Shares</th>
-          </tr>
-        </thead>
-        <tbody>
-          {campaigns.map((c) => (
-            <tr key={c.id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-              <td className="py-3 px-4 font-medium text-gray-900 dark:text-white max-w-[220px] truncate">{c.name}</td>
-              <td className="py-3 px-4 text-right"><StatusBadge status={c.status} /></td>
-              <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">${c.spend.toFixed(2)}</td>
-              <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.impressions.toLocaleString()}</td>
-              <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.clicks.toLocaleString()}</td>
-              <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.ctr.toFixed(2)}%</td>
-              <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.conversions.toLocaleString()}</td>
-              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.likes ?? 0).toLocaleString()}</td>
-              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.comments ?? 0).toLocaleString()}</td>
-              <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.shares ?? 0).toLocaleString()}</td>
+    <th
+      onClick={() => onSort(field)}
+      className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 whitespace-nowrap"
+    >
+      {label} <span className={`text-[10px] ${active ? '' : 'opacity-30'}`}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </th>
+  )
+}
+
+const PAGE_SIZE = 10
+
+export function LinkedInCampaignsTable({ campaigns }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>('spend')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [shown, setShown] = useState(PAGE_SIZE)
+
+  function handleSort(field: string) {
+    if (field === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(field as SortKey); setSortDir('desc') }
+  }
+
+  const sorted = [...campaigns].sort((a, b) => {
+    const v = (a[sortKey] ?? 0) - (b[sortKey] ?? 0)
+    return sortDir === 'asc' ? v : -v
+  })
+  const visible = sorted.slice(0, shown)
+  const hasMore = shown < sorted.length
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 px-1">
+        <span className="text-xs text-gray-400">Showing {visible.length} of {campaigns.length}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 dark:border-gray-800">
+              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Campaign</th>
+              <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
+              <SortTh label="Spend" field="spend" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Impressions" field="impressions" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Clicks" field="clicks" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="CTR" field="ctr" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Conversions" field="conversions" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Likes" field="likes" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Comments" field="comments" cur={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Shares" field="shares" cur={sortKey} dir={sortDir} onSort={handleSort} />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visible.map((c) => (
+              <tr key={c.id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                <td className="py-3 px-4 font-medium text-gray-900 dark:text-white max-w-[220px] truncate">{c.name}</td>
+                <td className="py-3 px-4 text-right"><StatusBadge status={c.status} /></td>
+                <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">${c.spend.toFixed(2)}</td>
+                <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.impressions.toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.clicks.toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.ctr.toFixed(2)}%</td>
+                <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{c.conversions.toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.likes ?? 0).toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.comments ?? 0).toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(c.shares ?? 0).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hasMore && (
+        <div className="py-3 border-t border-gray-100 dark:border-gray-800 text-center">
+          <button onClick={() => setShown(s => s + PAGE_SIZE)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            Show more ({sorted.length - shown} remaining)
+          </button>
+        </div>
+      )}
     </div>
   )
 }
