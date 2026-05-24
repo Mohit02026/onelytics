@@ -217,8 +217,8 @@ export default function AgencyPage() {
             {/* Action */}
             {ws.isActive ? (
               <Link href="/">
-                <Button size="sm" variant="outline" className="w-full">
-                  View Dashboard
+                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  View Dashboard <ArrowRight className="w-3 h-3 ml-1" />
                 </Button>
               </Link>
             ) : (
@@ -230,7 +230,7 @@ export default function AgencyPage() {
               >
                 {switching === ws.id
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <>Enter workspace <ArrowRight className="w-3 h-3 ml-1" /></>
+                  : <>Enter Workspace <ArrowRight className="w-3 h-3 ml-1" /></>
                 }
               </Button>
             )}

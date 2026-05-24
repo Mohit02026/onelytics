@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, Check, Plus, Loader2 } from 'lucide-react'
+import { ChevronDown, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface WorkspaceOption {
@@ -22,9 +22,6 @@ export function WorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
   const [loading, setLoading] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [showCreate, setShowCreate] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,7 +36,6 @@ export function WorkspaceSwitcher() {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false)
-        setShowCreate(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -74,26 +70,6 @@ export function WorkspaceSwitcher() {
       }
     } finally {
       setSwitching(null)
-    }
-  }
-
-  async function createWorkspace() {
-    if (!newName.trim() || creating) return
-    setCreating(true)
-    try {
-      const res = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim() }),
-      })
-      const d = await res.json()
-      if (res.ok) {
-        setNewName('')
-        setShowCreate(false)
-        await switchWorkspace(d.id)
-      }
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -176,40 +152,6 @@ export function WorkspaceSwitcher() {
             )}
           </div>
 
-          {/* Create workspace */}
-          <div className="border-t border-gray-100 dark:border-gray-800 p-1.5">
-            {showCreate ? (
-              <div className="flex items-center gap-2 px-2 py-1.5">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Workspace name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') createWorkspace()
-                    if (e.key === 'Escape') { setShowCreate(false); setNewName('') }
-                  }}
-                  className="flex-1 text-sm bg-transparent border-b border-gray-300 dark:border-gray-600 outline-none py-0.5 text-gray-900 dark:text-white placeholder:text-gray-400"
-                />
-                <button
-                  onClick={createWorkspace}
-                  disabled={!newName.trim() || creating}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400"
-                >
-                  {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Create'}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New workspace
-              </button>
-            )}
-          </div>
         </div>
       )}
     </div>
