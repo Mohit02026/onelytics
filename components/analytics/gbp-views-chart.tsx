@@ -22,6 +22,7 @@ const METRICS = [
   { key: 'websiteClicks', label: 'Website Clicks', color: '#10b981', axis: 'right' as const },
   { key: 'directionRequests', label: 'Directions', color: '#f59e0b', axis: 'right' as const },
   { key: 'photoViews', label: 'Photo Views', color: '#ec4899', axis: 'right' as const },
+  { key: 'calls', label: 'Phone Calls', color: '#16a34a', axis: 'right' as const },
 ]
 
 export function GbpViewsChart({ data }: Props) {

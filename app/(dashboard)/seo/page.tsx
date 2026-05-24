@@ -8,7 +8,6 @@ import { GscKeywordsTable } from '@/components/analytics/gsc-keywords-table'
 import { GscTopPagesTable, GscDeviceCountryBreakdown } from '@/components/analytics/gsc-breakdowns'
 import { GbpOverviewCards } from '@/components/analytics/gbp-overview-cards'
 import { GbpViewsChart } from '@/components/analytics/gbp-views-chart'
-import { GbpCallsChart } from '@/components/analytics/gbp-calls-chart'
 import { GbpSearchMapsPie } from '@/components/analytics/gbp-search-maps-pie'
 import { GbpReviewsTable } from '@/components/analytics/gbp-reviews-table'
 import { GbpPostsTable } from '@/components/analytics/gbp-posts-table'
@@ -177,8 +176,7 @@ export default function SeoPage() {
               <div className="lg:col-span-2"><GbpViewsChart data={aggregateRows(gbpReport.daily, granularity)} /></div>
               <GbpSearchMapsPie data={gbpReport.overview} />
             </div>
-            <GbpCallsChart data={aggregateRows(gbpReport.daily, granularity)} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <GbpReviewsTable reviews={gbpReport.reviews ?? []} />
               <GbpPostsTable posts={gbpReport.posts ?? []} />
             </div>

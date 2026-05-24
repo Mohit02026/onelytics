@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DateRangePicker, defaultDateRange } from '@/components/analytics/date-range-picker'
+import { GranularityPicker } from '@/components/analytics/granularity-picker'
 import { GbpOverviewCards } from '@/components/analytics/gbp-overview-cards'
-import { GbpCallsChart } from '@/components/analytics/gbp-calls-chart'
 import { GbpViewsChart } from '@/components/analytics/gbp-views-chart'
 import { GbpSearchMapsPie } from '@/components/analytics/gbp-search-maps-pie'
 import { GbpReviewsTable } from '@/components/analytics/gbp-reviews-table'
@@ -14,6 +14,7 @@ import { Building2, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
 import type { GbpReport } from '@/services/google/gbp'
+import { aggregateRows, type Granularity } from '@/lib/aggregate'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
 
@@ -22,6 +23,12 @@ export default function GoogleBusinessPage() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [report, setReport] = useState<GbpReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [granularity, setGranularity] = useState<Granularity>('daily')
+
+  const dailyAggregated = useMemo(
+    () => aggregateRows(report?.daily ?? [], granularity),
+    [report, granularity]
+  )
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -85,6 +92,7 @@ export default function GoogleBusinessPage() {
             <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <ExportPdfButton platform="gbp" startDate={dateRange.startDate} endDate={dateRange.endDate} />
+          <GranularityPicker value={granularity} onChange={setGranularity} />
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
@@ -94,10 +102,9 @@ export default function GoogleBusinessPage() {
       {report && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2"><GbpViewsChart data={report.daily} /></div>
+            <div className="lg:col-span-2"><GbpViewsChart data={dailyAggregated} /></div>
             <GbpSearchMapsPie data={report.overview} />
           </div>
-          <GbpCallsChart data={report.daily} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <GbpReviewsTable reviews={report.reviews ?? []} />
             <GbpPostsTable posts={report.posts ?? []} />
