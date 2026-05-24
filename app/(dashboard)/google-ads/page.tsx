@@ -11,7 +11,7 @@ import { ExportPdfButton } from '@/components/analytics/export-pdf-button'
 import { Activity, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import Link from 'next/link'
 import type { DateRange } from '@/components/analytics/date-range-picker'
-import type { AdsReport } from '@/services/google/ads'
+import type { AdsReport, AdsKeywordSnapshotMap } from '@/services/google/ads'
 
 type Status = 'loading' | 'not-connected' | 'error' | 'loaded'
 type Tab = 'campaigns' | 'keywords'
@@ -24,6 +24,7 @@ export default function GoogleAdsPage() {
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [activeTab, setActiveTab] = useState<Tab>('campaigns')
   const [volumes, setVolumes] = useState<Record<string, number> | undefined>(undefined)
+  const [snapshot, setSnapshot] = useState<AdsKeywordSnapshotMap | undefined>(undefined)
 
   const fetchReport = useCallback(async (range: DateRange) => {
     setRefreshing(true)
@@ -42,6 +43,7 @@ export default function GoogleAdsPage() {
       setReport(data)
       setStatus('loaded')
       setVolumes(undefined)
+      setSnapshot(undefined)
       // Fire-and-forget keyword volume fetch — top 20 by clicks only (quota protection)
       if (data.keywords && data.keywords.length > 0) {
         const top20 = data.keywords
@@ -56,6 +58,11 @@ export default function GoogleAdsPage() {
           .then((v) => { if (v) setVolumes(v) })
           .catch(() => undefined)
       }
+      // Fire-and-forget IS/QS snapshot — 24h cache, date-independent
+      fetch('/api/analytics/ads/snapshot')
+        .then((r) => r.ok ? r.json() : null)
+        .then((s) => { if (s) setSnapshot(s) })
+        .catch(() => undefined)
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Unknown error')
       setStatus('error')
@@ -148,7 +155,7 @@ export default function GoogleAdsPage() {
             </div>
 
             {activeTab === 'campaigns' && <AdsCampaignsTable campaigns={report.campaigns} />}
-            {activeTab === 'keywords' && <AdsKeywordsTable keywords={report.keywords ?? []} volumes={volumes} />}
+            {activeTab === 'keywords' && <AdsKeywordsTable keywords={report.keywords ?? []} volumes={volumes} snapshot={snapshot} />}
           </div>
         </div>
       )}

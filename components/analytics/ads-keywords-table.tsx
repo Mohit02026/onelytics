@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { AdsKeyword } from '@/services/google/ads'
+import type { AdsKeyword, AdsKeywordSnapshotMap } from '@/services/google/ads'
 
 interface Props {
   keywords: AdsKeyword[]
   volumes?: Record<string, number>
+  snapshot?: AdsKeywordSnapshotMap
 }
 
 const MATCH_BADGE: Record<string, string> = {
@@ -67,7 +68,7 @@ function QsBar({ score }: { score: number }) {
   )
 }
 
-export function AdsKeywordsTable({ keywords, volumes }: Props) {
+export function AdsKeywordsTable({ keywords, volumes, snapshot }: Props) {
   const [shown, setShown] = useState(PAGE_SIZE)
   const [sortKey, setSortKey] = useState<SortKey>('clicks')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -157,7 +158,11 @@ export function AdsKeywordsTable({ keywords, volumes }: Props) {
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">{fmtNum(k.impressions)}</td>
                   <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                    {k.searchImpressionShare !== null ? fmtPct(k.searchImpressionShare) : <span className="text-gray-400">—</span>}
+                    {(() => {
+                      const snKey = `${k.keyword?.toLowerCase()}::${k.matchType}`
+                      const is = snapshot?.[snKey]?.searchImpressionShare ?? k.searchImpressionShare
+                      return is !== null ? fmtPct(is) : <span className="text-gray-400">—</span>
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
                     {volumes?.[k.keyword?.toLowerCase() ?? ''] !== undefined
@@ -165,7 +170,11 @@ export function AdsKeywordsTable({ keywords, volumes }: Props) {
                       : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {k.qualityScore !== null ? <QsBar score={k.qualityScore} /> : <span className="text-gray-400">—</span>}
+                    {(() => {
+                      const snKey = `${k.keyword?.toLowerCase()}::${k.matchType}`
+                      const qs = snapshot?.[snKey]?.qualityScore ?? k.qualityScore
+                      return qs !== null ? <QsBar score={qs} /> : <span className="text-gray-400">—</span>
+                    })()}
                   </td>
                 </tr>
               ))}

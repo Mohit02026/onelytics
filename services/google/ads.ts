@@ -58,6 +58,9 @@ export interface AdsReport {
   source?: 'google-ads' | 'ga4'
 }
 
+// Map keyed by "keyword::MATCHTYPE" (lowercase keyword)
+export type AdsKeywordSnapshotMap = Record<string, { searchImpressionShare: number | null; qualityScore: number | null }>
+
 // ─── Real Google Ads API ──────────────────────────────────────────────────────
 // Google Ads uses GAQL (Google Ads Query Language) via REST.
 // Requires: access_token + developer_token + customer_id header.
@@ -154,45 +157,11 @@ export async function getAdsReportFromApi(
     LIMIT 200
   `
 
-  // Impression share — cannot be SELECT-ed alongside segments.date, so run separately.
-  // WHERE date filter still applies so the result reflects the requested period.
-  // Only search_impression_share is compatible with keyword_view resource.
-  const impressionShareQuery = `
-    SELECT
-      ad_group_criterion.keyword.text,
-      ad_group_criterion.keyword.match_type,
-      metrics.search_impression_share
-    FROM keyword_view
-    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-      AND campaign.status != 'REMOVED'
-      AND ad_group.status != 'REMOVED'
-      AND ad_group_criterion.status != 'REMOVED'
-      AND ad_group_criterion.type = 'KEYWORD'
-    LIMIT 200
-  `
-
-  // Quality score — a criterion attribute, not time-based. No date segment needed.
-  // Only quality_score is available; ad_relevance and landing_page_experience are not exposed in v24.
-  const qualityScoreQuery = `
-    SELECT
-      ad_group_criterion.keyword.text,
-      ad_group_criterion.keyword.match_type,
-      ad_group_criterion.quality_info.quality_score
-    FROM ad_group_criterion
-    WHERE ad_group_criterion.type = 'KEYWORD'
-      AND campaign.status != 'REMOVED'
-      AND ad_group.status != 'REMOVED'
-      AND ad_group_criterion.status != 'REMOVED'
-    LIMIT 1000
-  `
-
-  const [dailyRes, campaignRes, keywordRes, searchTermRes, impressionShareRes, qualityScoreRes] = await Promise.all([
+  const [dailyRes, campaignRes, keywordRes, searchTermRes] = await Promise.all([
     fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: dailyQuery }) }),
     fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: campaignQuery }) }),
     fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: keywordQuery }) }),
     fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: searchTermQuery }) }),
-    fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: impressionShareQuery }) }),
-    fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: qualityScoreQuery }) }),
   ])
 
   if (!dailyRes.ok) {
@@ -210,44 +179,10 @@ export async function getAdsReportFromApi(
   type CampaignRow = { campaign: { name: string; advertisingChannelType: string }; metrics: { costMicros: string; clicks: string; impressions: string; ctr: string; averageCpc: string; conversions: string; conversionsValue: string; costPerConversion: string; phoneCalls: string } }
   type KeywordRow = { adGroupCriterion: { keyword: { text: string; matchType: string } }; metrics: ApiMetrics }
   type SearchTermRow = { searchTermView: { searchTerm: string }; metrics: ApiMetrics }
-  type ImpressionShareRow = {
-    adGroupCriterion: { keyword: { text: string; matchType: string } }
-    metrics: { searchImpressionShare: string }
-  }
-  type QualityScoreRow = {
-    adGroupCriterion: {
-      keyword: { text: string; matchType: string }
-      qualityInfo: { qualityScore: number | null }
-    }
-  }
-
   const dailyStream: { results: DailyRow[] }[] = await dailyRes.json()
   const campaignStream: { results: CampaignRow[] }[] = await campaignRes.ok ? await campaignRes.json() : [{ results: [] }]
   const keywordStream: { results: KeywordRow[] }[] = keywordRes.ok ? await keywordRes.json() : [{ results: [] }]
   const searchTermStream: { results: SearchTermRow[] }[] = searchTermRes.ok ? await searchTermRes.json() : [{ results: [] }]
-  const impressionShareStream: { results: ImpressionShareRow[] }[] = impressionShareRes.ok ? await impressionShareRes.json() : [{ results: [] }]
-  const qualityScoreStream: { results: QualityScoreRow[] }[] = qualityScoreRes.ok ? await qualityScoreRes.json() : [{ results: [] }]
-
-  // Build lookup maps keyed by "keyword::matchType" (lowercased)
-  const impressionShareMap = new Map<string, number>()
-  for (const chunk of impressionShareStream) {
-    for (const row of chunk.results ?? []) {
-      const key = `${row.adGroupCriterion?.keyword?.text?.toLowerCase()}::${row.adGroupCriterion?.keyword?.matchType}`
-      const share = parseFloat(row.metrics?.searchImpressionShare ?? 'NaN')
-      if (!isNaN(share)) impressionShareMap.set(key, share)
-    }
-  }
-
-  const qualityScoreMap = new Map<string, number>()
-  for (const chunk of qualityScoreStream) {
-    for (const row of chunk.results ?? []) {
-      const qs = row.adGroupCriterion?.qualityInfo?.qualityScore
-      if (qs != null) {
-        const key = `${row.adGroupCriterion?.keyword?.text?.toLowerCase()}::${row.adGroupCriterion?.keyword?.matchType}`
-        qualityScoreMap.set(key, qs)
-      }
-    }
-  }
 
   // Aggregate daily rows
   const dailyMap = new Map<string, AdsDailyRow>()
@@ -314,7 +249,6 @@ export async function getAdsReportFromApi(
     const cost = parseInt(m.costMicros ?? '0', 10) / 1_000_000
     const clicks = parseInt(m.clicks, 10)
     const conversions = parseFloat(m.conversions ?? '0')
-    const key = `${text.toLowerCase()}::${matchType}`
     return {
       keyword: text,
       matchType,
@@ -328,8 +262,8 @@ export async function getAdsReportFromApi(
       viewThroughConversions: parseFloat(m.viewThroughConversions ?? '0'),
       conversionRate: clicks > 0 ? conversions / clicks : 0,
       costPerConversion: parseInt(m.costPerConversion ?? '0', 10) / 1_000_000,
-      searchImpressionShare: impressionShareMap.get(key) ?? null,
-      qualityScore: qualityScoreMap.get(key) ?? null,
+      searchImpressionShare: null,
+      qualityScore: null,
     }
   }
 
@@ -360,6 +294,97 @@ export async function getAdsReportFromApi(
   }
 
   return { overview, daily, campaigns, keywords, dateRange: { startDate, endDate } }
+}
+
+// ─── Keyword snapshot — IS + QS with 24h cache (date-independent) ────────────
+// Impression share uses a fixed 30-day window; quality score has no date filter.
+// Both are slow to change so they live in a separate snapshot cache, not the
+// per-date-range report cache.
+
+export async function getAdsKeywordSnapshot(
+  accessToken: string,
+  customerId: string
+): Promise<AdsKeywordSnapshotMap> {
+  const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN!
+  const baseUrl = `https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'developer-token': devToken,
+    'Content-Type': 'application/json',
+  }
+
+  const endDate = new Date().toISOString().split('T')[0]
+  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const impressionShareQuery = `
+    SELECT
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      metrics.search_impression_share
+    FROM keyword_view
+    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      AND campaign.status != 'REMOVED'
+      AND ad_group.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'
+      AND ad_group_criterion.type = 'KEYWORD'
+    LIMIT 200
+  `
+
+  const qualityScoreQuery = `
+    SELECT
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      ad_group_criterion.quality_info.quality_score
+    FROM ad_group_criterion
+    WHERE ad_group_criterion.type = 'KEYWORD'
+      AND campaign.status != 'REMOVED'
+      AND ad_group.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'
+    LIMIT 1000
+  `
+
+  type ImpressionShareRow = {
+    adGroupCriterion: { keyword: { text: string; matchType: string } }
+    metrics: { searchImpressionShare: string }
+  }
+  type QualityScoreRow = {
+    adGroupCriterion: {
+      keyword: { text: string; matchType: string }
+      qualityInfo: { qualityScore: number | null }
+    }
+  }
+
+  const [isRes, qsRes] = await Promise.all([
+    fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: impressionShareQuery }) }),
+    fetch(baseUrl, { method: 'POST', headers, body: JSON.stringify({ query: qualityScoreQuery }) }),
+  ])
+
+  const isStream: { results: ImpressionShareRow[] }[] = isRes.ok ? await isRes.json() : [{ results: [] }]
+  const qsStream: { results: QualityScoreRow[] }[] = qsRes.ok ? await qsRes.json() : [{ results: [] }]
+
+  const map: AdsKeywordSnapshotMap = {}
+
+  for (const chunk of isStream) {
+    for (const row of chunk.results ?? []) {
+      const key = `${row.adGroupCriterion?.keyword?.text?.toLowerCase()}::${row.adGroupCriterion?.keyword?.matchType}`
+      const share = parseFloat(row.metrics?.searchImpressionShare ?? 'NaN')
+      if (!isNaN(share)) {
+        map[key] = { ...map[key], searchImpressionShare: share, qualityScore: map[key]?.qualityScore ?? null }
+      }
+    }
+  }
+
+  for (const chunk of qsStream) {
+    for (const row of chunk.results ?? []) {
+      const qs = row.adGroupCriterion?.qualityInfo?.qualityScore
+      if (qs != null) {
+        const key = `${row.adGroupCriterion?.keyword?.text?.toLowerCase()}::${row.adGroupCriterion?.keyword?.matchType}`
+        map[key] = { searchImpressionShare: map[key]?.searchImpressionShare ?? null, qualityScore: qs }
+      }
+    }
+  }
+
+  return map
 }
 
 // ─── GA4-based fallback (uses linked Google Ads data via GA4 Data API) ───────
