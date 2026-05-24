@@ -19,60 +19,64 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .object({ email: z.string().email(), password: z.string().min(6) })
           .safeParse(credentials);
 
-        if (parsedCredentials.success) {
-          const { email: rawEmail, password } = parsedCredentials.data;
-          const email = rawEmail.toLowerCase()
+        if (!parsedCredentials.success) return null;
+
+        const { email: rawEmail, password } = parsedCredentials.data;
+        const email = rawEmail.toLowerCase();
+
+        try {
           const user = await prisma.user.findUnique({ where: { email } });
           if (!user || !user.password) return null;
-          
+
           const passwordsMatch = await bcrypt.compare(password, user.password);
-          if (passwordsMatch) {
-            let organizationId = user.organizationId ?? undefined
+          if (!passwordsMatch) return null;
 
-            // Lazy org bootstrap for users created before the Organization model existed
-            if (!organizationId) {
-              const org = await prisma.$transaction(async (tx) => {
-                const newOrg = await tx.organization.create({
-                  data: { name: user.name ? `${user.name}'s Agency` : 'My Agency' },
-                })
-                await tx.workspace.update({
-                  where: { id: user.workspaceId },
-                  data: { organizationId: newOrg.id },
-                })
-                await tx.user.update({
-                  where: { id: user.id },
-                  data: { organizationId: newOrg.id },
-                })
-                await tx.orgMember.upsert({
-                  where: { organizationId_userId: { organizationId: newOrg.id, userId: user.id } },
-                  create: { organizationId: newOrg.id, userId: user.id, role: 'OWNER' },
-                  update: {},
-                })
-                return newOrg
+          let organizationId = user.organizationId ?? undefined
+
+          // Lazy org bootstrap for users created before the Organization model existed
+          if (!organizationId) {
+            const org = await prisma.$transaction(async (tx) => {
+              const newOrg = await tx.organization.create({
+                data: { name: user.name ? `${user.name}'s Agency` : 'My Agency' },
               })
-              organizationId = org.id
-            }
-
-            // Fetch org role
-            const orgMember = await prisma.orgMember.findUnique({
-              where: { organizationId_userId: { organizationId: organizationId!, userId: user.id } },
-              select: { role: true },
+              await tx.workspace.update({
+                where: { id: user.workspaceId },
+                data: { organizationId: newOrg.id },
+              })
+              await tx.user.update({
+                where: { id: user.id },
+                data: { organizationId: newOrg.id },
+              })
+              await tx.orgMember.upsert({
+                where: { organizationId_userId: { organizationId: newOrg.id, userId: user.id } },
+                create: { organizationId: newOrg.id, userId: user.id, role: 'OWNER' },
+                update: {},
+              })
+              return newOrg
             })
-            const orgRole = orgMember?.role ?? undefined
-
-            return {
-              id: user.id,
-              email: user.email ?? "",
-              name: user.name ?? "",
-              workspaceId: user.workspaceId,
-              organizationId,
-              onboarded: user.onboarded,
-              orgRole,
-            };
+            organizationId = org.id
           }
-        }
 
-        return null;
+          const orgMember = await prisma.orgMember.findUnique({
+            where: { organizationId_userId: { organizationId: organizationId!, userId: user.id } },
+            select: { role: true },
+          })
+          const orgRole = orgMember?.role ?? undefined
+
+          return {
+            id: user.id,
+            email: user.email ?? "",
+            name: user.name ?? "",
+            workspaceId: user.workspaceId,
+            organizationId,
+            onboarded: user.onboarded,
+            orgRole,
+          };
+        } catch (err) {
+          console.error('[auth] authorize error:', err)
+          // Throw so NextAuth surfaces a server error rather than "wrong password"
+          throw new Error('Authentication service unavailable. Please try again.')
+        }
       }
     })
   ],
