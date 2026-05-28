@@ -83,9 +83,14 @@ function parseInsightRow(row: InsightRow) {
   const ctr = parseFloat(row.ctr ?? '0')
   const frequency = parseFloat(row.frequency ?? '0')
 
-  const conversions = (row.actions ?? [])
-    .filter((a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
-    .reduce((s, a) => s + parseInt(a.value, 10), 0)
+  // Deduplicate by action_type — last value wins (Meta API sometimes returns duplicate entries)
+  const actionMap = new Map<string, number>()
+  for (const a of (row.actions ?? [])) {
+    if (a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase') {
+      actionMap.set(a.action_type, parseInt(a.value, 10))
+    }
+  }
+  const conversions = Array.from(actionMap.values()).reduce((s, v) => s + v, 0)
 
   const purchaseValue = (row.action_values ?? [])
     .filter((a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
@@ -156,6 +161,7 @@ export async function getMetaReportFromApi(
   }))
 
   const overviewAcc = { spend: 0, reach: 0, impressions: 0, clicks: 0, cpm: 0, ctr: 0, frequency: 0, conversions: 0, videoViews: 0, roas: 0, cpa: 0 }
+  let totalRevenue = 0
   for (const row of dailyData.data) {
     const p = parseInsightRow(row)
     overviewAcc.spend += p.spend
@@ -164,13 +170,14 @@ export async function getMetaReportFromApi(
     overviewAcc.clicks += p.clicks
     overviewAcc.conversions += p.conversions
     overviewAcc.videoViews += p.videoViews
+    totalRevenue += p.purchaseValue
   }
   overviewAcc.cpm = overviewAcc.impressions > 0 ? (overviewAcc.spend / overviewAcc.impressions) * 1000 : 0
   overviewAcc.ctr = overviewAcc.impressions > 0 ? (overviewAcc.clicks / overviewAcc.impressions) * 100 : 0
   overviewAcc.frequency = overviewAcc.reach > 0 ? overviewAcc.impressions / overviewAcc.reach : 0
   overviewAcc.cpa = overviewAcc.conversions > 0 ? overviewAcc.spend / overviewAcc.conversions : 0
-  const roasRows = dailyData.data.map(parseInsightRow).filter(r => r.roas > 0)
-  overviewAcc.roas = roasRows.length > 0 ? roasRows.reduce((s, r) => s + r.roas, 0) / roasRows.length : 0
+  // ROAS = totalRevenue / totalSpend (not average of per-row ROAS values)
+  overviewAcc.roas = overviewAcc.spend > 0 ? totalRevenue / overviewAcc.spend : 0
 
   const campaigns: MetaCampaign[] = campaignListData.data.map((c) => {
     const insightRow = insightsByCampaignId.get(c.id) ?? {}

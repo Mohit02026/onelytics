@@ -2,7 +2,7 @@ export interface GscOverview {
   clicks: number
   impressions: number
   ctr: number // 0–1
-  position: number // avg position (lower = better)
+  position: number | null // avg position (lower = better); null when no keyword data
 }
 
 export interface GscDailyRow {
@@ -196,16 +196,17 @@ export async function getGscReportFromApi(
     impressions: r.impressions,
   }))
 
-  const overview = daily.reduce(
+  const overviewBase = daily.reduce(
     (acc, d) => ({ ...acc, clicks: acc.clicks + d.clicks, impressions: acc.impressions + d.impressions }),
-    { clicks: 0, impressions: 0, ctr: 0, position: 0 }
+    { clicks: 0, impressions: 0, ctr: 0, position: 0 as number | null }
   )
-  overview.ctr = overview.impressions > 0 ? overview.clicks / overview.impressions : 0
-  overview.position =
-    keywords.length > 0
-      ? keywords.reduce((s, k) => s + k.position * k.impressions, 0) /
-        keywords.reduce((s, k) => s + k.impressions, 0)
-      : 0
+  overviewBase.ctr = overviewBase.impressions > 0 ? overviewBase.clicks / overviewBase.impressions : 0
+  const totalKwImpressions = keywords.reduce((s, k) => s + k.impressions, 0)
+  overviewBase.position =
+    keywords.length > 0 && totalKwImpressions > 0
+      ? keywords.reduce((s, k) => s + k.position * k.impressions, 0) / totalKwImpressions
+      : null
+  const overview = overviewBase
 
   return { overview, daily, keywords, topPages, devices, countries, dateRange: { startDate, endDate } }
 }

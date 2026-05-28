@@ -66,7 +66,8 @@ function prevRange(startDate: string, endDate: string) {
 
 function pctDelta(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0
-  return Math.round(((current - previous) / previous) * 1000) / 10
+  // Use Math.abs(previous) so sign is determined by (current - previous) direction, not previous's sign
+  return Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10
 }
 
 async function fetchWithTimeout(url: string, reqHeaders: Record<string, string> = {}, ms = 8000): Promise<Response> {

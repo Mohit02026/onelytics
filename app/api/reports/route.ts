@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { getMembership, canGenerateReports } from '@/lib/workspace'
 import { generateReport, generateAINarrative } from '@/services/reports/generate'
 import { notifyWorkspace } from '@/lib/notify'
 import { z } from 'zod'
@@ -38,6 +39,11 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const membership = await getMembership(session.user.id, session.user.workspaceId)
+  if (!membership || !canGenerateReports(membership.role)) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const parsed = schema.safeParse(body)

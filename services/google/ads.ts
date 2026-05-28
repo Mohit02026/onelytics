@@ -190,7 +190,7 @@ export async function getAdsReportFromApi(
     for (const row of chunk.results ?? []) {
       const date = row.segments.date
       const existing = dailyMap.get(date) ?? { date, spend: 0, clicks: 0, impressions: 0, phoneCalls: 0 }
-      existing.spend += parseInt(row.metrics.costMicros ?? '0', 10) / 1_000_000
+      existing.spend += Math.round(parseFloat(row.metrics.costMicros ?? '0')) / 1_000_000
       existing.clicks += parseInt(row.metrics.clicks, 10)
       existing.impressions += parseInt(row.metrics.impressions, 10)
       existing.phoneCalls += parseInt(row.metrics.phoneCalls ?? '0', 10)
@@ -217,7 +217,7 @@ export async function getAdsReportFromApi(
   let totalConversionsValue = 0
   for (const chunk of campaignStream) {
     for (const row of chunk.results ?? []) {
-      const spend = parseInt(row.metrics.costMicros ?? '0', 10) / 1_000_000
+      const spend = Math.round(parseFloat(row.metrics.costMicros ?? '0')) / 1_000_000
       const clicks = parseInt(row.metrics.clicks, 10)
       const impressions = parseInt(row.metrics.impressions, 10)
       const conversions = parseFloat(row.metrics.conversions ?? '0')

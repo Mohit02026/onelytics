@@ -145,11 +145,10 @@ export async function getTikTokReportFromApi(
     overview.conversions += s.conversions
     overview.roas += s.roas
   }
-  const rowCount = dailyData.data.list?.length ?? 0
   overview.ctr = overview.impressions > 0 ? (overview.clicks / overview.impressions) * 100 : 0
   overview.cpm = overview.impressions > 0 ? (overview.spend / overview.impressions) * 1000 : 0
   overview.cpa = overview.conversions > 0 ? overview.spend / overview.conversions : 0
-  overview.roas = rowCount > 0 ? overview.roas / rowCount : 0
+  // roas is accumulated as a sum — do not divide by row count
   overview.videoViewRate = overview.impressions > 0 ? (overview.videoViews / overview.impressions) * 100 : 0
   overview.frequency = overview.reach > 0 ? overview.impressions / overview.reach : 0
 
