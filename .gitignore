@@ -8,6 +8,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/.vscode/
 
 # next.js
 /.next/
