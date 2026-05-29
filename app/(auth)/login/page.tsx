@@ -22,18 +22,24 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (result?.error) {
+      if (result?.error) {
+        setError('Invalid email or password.');
+        setLoading(false);
+      } else {
+        router.push('/');
+        router.refresh();
+      }
+    } catch {
+      // NextAuth v5 throws on failed credentials rather than returning { error }
       setError('Invalid email or password.');
       setLoading(false);
-    } else {
-      router.push('/');
-      router.refresh();
     }
   };
 

@@ -67,8 +67,9 @@ test('E6: MEMBER sees settings page but Save Changes and Delete Workspace are ab
     await page.goto('/settings')
 
     // Settings page renders (not redirected away)
+    // Use level: 2 to target the settings layout h2 — the navbar also renders an h1 "Settings"
     await expect(
-      page.getByRole('heading', { name: 'Settings' })
+      page.getByRole('heading', { name: 'Settings', level: 2 })
     ).toBeVisible({ timeout: 10_000 })
 
     // "Your role" text confirms MEMBER role is displayed
@@ -149,8 +150,9 @@ test('E7: VIEWER cannot generate a report — API returns forbidden', async ({ p
 
     // Reports list page is accessible
     await page.goto('/reports')
+    // Use level: 2 to target the reports page h2 — the navbar also renders an h1 "Reports"
     await expect(
-      page.getByRole('heading', { name: 'Reports' })
+      page.getByRole('heading', { name: 'Reports', level: 2 })
     ).toBeVisible({ timeout: 10_000 })
 
     // Navigate to the new report form
