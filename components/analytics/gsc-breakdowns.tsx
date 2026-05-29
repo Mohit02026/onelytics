@@ -37,10 +37,10 @@ export function GscTopPagesTable({ pages }: { pages: GscPage[] }) {
                   <td className="px-6 py-3 text-right text-gray-700 dark:text-gray-300">{(p.ctr * 100).toFixed(1)}%</td>
                   <td className="px-6 py-3 text-right">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      p.position <= 3 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                      p.position <= 10 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      p.position != null && p.position <= 3 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      p.position != null && p.position <= 10 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                       'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                    }`}>{p.position.toFixed(1)}</span>
+                    }`}>{p.position != null ? p.position.toFixed(1) : '—'}</span>
                   </td>
                 </tr>
               ))}

@@ -38,7 +38,7 @@ export function GscOverviewCards({ data }: Props) {
     },
     {
       label: 'Avg Position',
-      value: data.position.toFixed(1),
+      value: data.position != null ? data.position.toFixed(1) : '—',
       icon: MapPin,
       color: 'text-orange-600 dark:text-orange-400',
       bg: 'bg-orange-50 dark:bg-orange-950',

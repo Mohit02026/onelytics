@@ -19,6 +19,15 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<ReportSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Workspace role — VIEWERs cannot generate reports. Default true while loading.
+  const [canGenerate, setCanGenerate] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/workspace')
+      .then((r) => r.json())
+      .then((d) => { if (d.role) setCanGenerate(d.role !== 'VIEWER') })
+      .catch(() => {})
+  }, [])
 
   async function loadReports() {
     try {
@@ -62,12 +71,14 @@ export default function ReportsPage() {
             Generate and view agency-style marketing performance reports.
           </p>
         </div>
-        <Link href="/reports/new">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-            <Plus className="w-4 h-4" />
-            New Report
-          </Button>
-        </Link>
+        {canGenerate && (
+          <Link href="/reports/new">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+              <Plus className="w-4 h-4" />
+              New Report
+            </Button>
+          </Link>
+        )}
       </div>
 
       {loading && (
@@ -85,11 +96,13 @@ export default function ReportsPage() {
             <p className="text-sm text-gray-400 mt-1 mb-4">
               Generate your first marketing performance report.
             </p>
-            <Link href="/reports/new">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Generate Report
-              </Button>
-            </Link>
+            {canGenerate && (
+              <Link href="/reports/new">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Generate Report
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       )}

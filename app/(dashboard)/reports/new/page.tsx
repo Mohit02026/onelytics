@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, FileText, CheckSquare, Square } from 'lucide-react'
+import { Loader2, FileText, CheckSquare, Square, Lock } from 'lucide-react'
 
 const PRESETS = [
   { label: 'Last 7 days', days: 7 },
@@ -34,6 +34,15 @@ function getRange(days: number) {
 
 export default function NewReportPage() {
   const router = useRouter()
+  // Workspace role — VIEWERs cannot generate reports. Default true while loading.
+  const [canGenerate, setCanGenerate] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/workspace')
+      .then((r) => r.json())
+      .then((d) => { if (d.role) setCanGenerate(d.role !== 'VIEWER') })
+      .catch(() => {})
+  }, [])
   const [title, setTitle] = useState('')
   const [startDate, setStartDate] = useState(getRange(30).startDate)
   const [endDate, setEndDate] = useState(getRange(30).endDate)
@@ -89,6 +98,25 @@ export default function NewReportPage() {
   const selectedLabels = PLATFORMS
     .filter((p) => selectedPlatforms.includes(p.id))
     .map((p) => p.label)
+
+  if (!canGenerate) {
+    return (
+      <div className="max-w-2xl mx-auto py-6">
+        <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <CardContent className="py-16 text-center">
+            <Lock className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 font-medium">Access restricted</p>
+            <p className="text-sm text-gray-400 mt-1 mb-4">
+              Viewers cannot generate reports. Contact your workspace admin.
+            </p>
+            <Button variant="outline" onClick={() => router.push('/reports')}>
+              Back to Reports
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-2xl mx-auto py-6 space-y-6">

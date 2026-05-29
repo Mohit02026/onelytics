@@ -114,7 +114,7 @@ test('E6: MEMBER sees settings page but Save Changes and Delete Workspace are ab
  * the "New Report" button on /reports is absent or disabled for VIEWER role,
  * and that /reports/new redirects away or renders a "no access" message.
  */
-test('E7: VIEWER cannot generate a report — API returns forbidden', async ({ page }) => {
+test('E7: VIEWER cannot generate a report — button hidden and /reports/new shows access denied', async ({ page }) => {
   const hash = await bcrypt.hash(ROLE_PASSWORD, 10)
 
   const org = await testPrisma.organization.create({
@@ -148,34 +148,19 @@ test('E7: VIEWER cannot generate a report — API returns forbidden', async ({ p
     await page.click('button[type="submit"]')
     await page.waitForURL('/', { timeout: 15_000 })
 
-    // Reports list page is accessible
+    // Reports list page — "New Report" button must not be visible for VIEWER
     await page.goto('/reports')
-    // Use level: 2 to target the reports page h2 — the navbar also renders an h1 "Reports"
     await expect(
       page.getByRole('heading', { name: 'Reports', level: 2 })
     ).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('link', { name: /new report/i })).not.toBeVisible()
 
-    // Navigate to the new report form
+    // Directly navigating to /reports/new shows access-denied card, not the form
     await page.goto('/reports/new')
     await expect(
-      page.getByRole('heading', { name: 'New Report' })
+      page.getByText('Access restricted')
     ).toBeVisible({ timeout: 10_000 })
-
-    // Fill in the minimum required fields so client-side validation passes
-    await page.fill('input[placeholder*="Performance Report"]', 'Test Report')
-
-    // Click Generate Report — this triggers POST /api/reports which returns 403 for VIEWER
-    await page.getByRole('button', { name: 'Generate Report' }).click()
-
-    // The form surfaces the API error message
-    // app/api/reports/route.ts returns { error: 'Forbidden' } with status 403
-    // The new-report page sets setError(data.error ?? 'Failed to generate report.')
-    await expect(
-      page.getByText(/forbidden|failed to generate report/i)
-    ).toBeVisible({ timeout: 10_000 })
-
-    // Confirm we did NOT navigate away to a report page
-    await expect(page).toHaveURL(/\/reports\/new/)
+    await expect(page.getByRole('button', { name: 'Generate Report' })).not.toBeVisible()
   } finally {
     await cleanupUserByEmail(ROLE_VIEWER_EMAIL)
   }
