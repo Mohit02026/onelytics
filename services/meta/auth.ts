@@ -32,5 +32,6 @@ export async function exchangeCodeForTokens(code: string): Promise<MetaTokens> {
     throw new Error(`Meta token exchange failed: ${(err as { error?: { message?: string } }).error?.message ?? res.status}`)
   }
   const data = await res.json()
+  if (!data.access_token) throw new Error('Meta token exchange returned no access_token')
   return { accessToken: data.access_token, expiresIn: data.expires_in ?? 5183944 }
 }
