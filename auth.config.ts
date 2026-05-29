@@ -1,5 +1,8 @@
 import type { NextAuthConfig } from 'next-auth';
 
+// Edge-safe config — used by middleware only.
+// Only the `authorized` guard lives here; no Prisma, no Node-only imports.
+// JWT and session callbacks are in lib/auth.ts (Node runtime, DB access).
 export const authConfig = {
   trustHost: true,
   pages: {
@@ -20,39 +23,9 @@ export const authConfig = {
         return true;
       }
 
-      if (!isLoggedIn) {
-        return false;
-      }
+      if (!isLoggedIn) return false;
       return true;
     },
-    async jwt({ token, user, trigger, session: sessionData }) {
-      if (user) {
-        token.id = user.id;
-        // @ts-ignore
-        token.workspaceId = user.workspaceId;
-        // @ts-ignore
-        token.organizationId = user.organizationId;
-        // @ts-ignore
-        token.onboarded = user.onboarded;
-        // @ts-ignore
-        token.orgRole = user.orgRole;
-      }
-      if (trigger === 'update') {
-        if (sessionData?.workspaceId) token.workspaceId = sessionData.workspaceId;
-        if (sessionData?.onboarded !== undefined) token.onboarded = sessionData.onboarded;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        if (token.id) session.user.id = token.id as string;
-        if (token.workspaceId) session.user.workspaceId = token.workspaceId as string;
-        if (token.organizationId) session.user.organizationId = token.organizationId as string;
-        session.user.onboarded = (token.onboarded as boolean) ?? false;
-        if (token.orgRole) session.user.orgRole = token.orgRole as string;
-      }
-      return session;
-    }
   },
   providers: [],
 } satisfies NextAuthConfig;

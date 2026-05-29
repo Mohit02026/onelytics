@@ -8,6 +8,16 @@ const schema = z.object({
   workspaceName: z.string().min(1).max(80).optional(),
 })
 
+export async function GET() {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { onboarded: true },
+  })
+  return NextResponse.json({ onboarded: user?.onboarded ?? false })
+}
+
 export async function PATCH(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

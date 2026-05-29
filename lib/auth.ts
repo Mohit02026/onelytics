@@ -31,11 +31,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const passwordsMatch = await bcrypt.compare(password, user.password);
           if (!passwordsMatch) return null;
 
-          let organizationId = user.organizationId ?? undefined
-
           // Lazy org bootstrap for users created before the Organization model existed
-          if (!organizationId) {
-            const org = await prisma.$transaction(async (tx) => {
+          if (!user.organizationId) {
+            await prisma.$transaction(async (tx) => {
               const newOrg = await tx.organization.create({
                 data: { name: user.name ? `${user.name}'s Agency` : 'My Agency' },
               })
@@ -52,32 +50,69 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 create: { organizationId: newOrg.id, userId: user.id, role: 'OWNER' },
                 update: {},
               })
-              return newOrg
             })
-            organizationId = org.id
           }
 
-          const orgMember = await prisma.orgMember.findUnique({
-            where: { organizationId_userId: { organizationId: organizationId!, userId: user.id } },
-            select: { role: true },
-          })
-          const orgRole = orgMember?.role ?? undefined
-
-          return {
-            id: user.id,
-            email: user.email ?? "",
-            name: user.name ?? "",
-            workspaceId: user.workspaceId,
-            organizationId,
-            onboarded: user.onboarded,
-            orgRole,
-          };
+          // Only standard fields needed — JWT callback reads custom fields from DB
+          return { id: user.id, email: user.email ?? "", name: user.name ?? "" };
         } catch (err) {
           console.error('[auth] authorize error:', err)
-          // Throw so NextAuth surfaces a server error rather than "wrong password"
           throw new Error('Authentication service unavailable. Please try again.')
         }
       }
     })
   ],
+  callbacks: {
+    // Preserve the edge-safe `authorized` guard from authConfig
+    ...authConfig.callbacks,
+
+    // Runs server-side (Node runtime) — safe to use Prisma here.
+    // Query DB directly so custom fields are always reliable regardless of
+    // whether NextAuth v5 beta passes them through the `user` parameter.
+    async jwt({ token, user, trigger, session: sessionData }) {
+      if (user) {
+        token.id = user.id as string
+
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id as string },
+          select: { workspaceId: true, organizationId: true, onboarded: true },
+        })
+
+        token.workspaceId = dbUser?.workspaceId ?? ''
+        token.organizationId = dbUser?.organizationId ?? undefined
+        token.onboarded = dbUser?.onboarded ?? false
+
+        if (dbUser?.organizationId) {
+          const orgMember = await prisma.orgMember.findUnique({
+            where: {
+              organizationId_userId: {
+                organizationId: dbUser.organizationId,
+                userId: user.id as string,
+              },
+            },
+            select: { role: true },
+          })
+          token.orgRole = orgMember?.role ?? undefined
+        }
+      }
+
+      if (trigger === 'update') {
+        if (sessionData?.workspaceId) token.workspaceId = sessionData.workspaceId as string
+        if (sessionData?.onboarded !== undefined) token.onboarded = sessionData.onboarded as boolean
+      }
+
+      return token
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        if (token.id) session.user.id = token.id as string
+        if (token.workspaceId) session.user.workspaceId = token.workspaceId as string
+        if (token.organizationId) session.user.organizationId = token.organizationId as string
+        session.user.onboarded = (token.onboarded as boolean) ?? false
+        if (token.orgRole) session.user.orgRole = token.orgRole as string
+      }
+      return session
+    },
+  },
 })

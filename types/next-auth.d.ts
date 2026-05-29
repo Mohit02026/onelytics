@@ -11,8 +11,9 @@ declare module "next-auth" {
     } & DefaultSession["user"]
   }
 
+  // authorize() only returns standard fields; JWT callback reads custom fields from DB
   interface User {
-    workspaceId: string
+    workspaceId?: string
     organizationId?: string
     onboarded?: boolean
     orgRole?: string
