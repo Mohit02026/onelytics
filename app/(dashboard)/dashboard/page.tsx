@@ -39,7 +39,6 @@ export default function DashboardPage() {
 
   if (loading) return <DashboardSkeleton />
 
-  // Onboarding state — nothing connected yet
   if (nothingConnected) {
     return (
       <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -62,7 +61,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Overview</h2>
@@ -79,11 +77,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI cards */}
       {report && <UnifiedStats data={report} />}
 
-
-      {/* Spend chart + AI summary */}
       {report && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
@@ -95,7 +90,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Integration quick links */}
       {report && <IntegrationQuickLinks report={report} />}
     </div>
   )

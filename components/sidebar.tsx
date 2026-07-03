@@ -25,7 +25,7 @@ const topItems = [
 ]
 
 const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Google Analytics', href: '/ga4', icon: BarChart3 },
   { name: 'Google Ads', href: '/google-ads', icon: Activity },
   { name: 'SEO', href: '/seo', icon: Search },

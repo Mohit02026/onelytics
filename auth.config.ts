@@ -15,11 +15,17 @@ export const authConfig = {
       const isAuthRoute = nextUrl.pathname === '/login' || nextUrl.pathname === '/register';
       const isInviteRoute = nextUrl.pathname.startsWith('/invite/');
       const isPortalRoute = nextUrl.pathname.startsWith('/portal/');
+      const isPublicPage =
+        nextUrl.pathname === '/' ||
+        nextUrl.pathname === '/pricing' ||
+        nextUrl.pathname === '/privacy' ||
+        nextUrl.pathname === '/terms' ||
+        nextUrl.pathname.startsWith('/google');
 
-      if (isApiAuthRoute || isInviteRoute || isPortalRoute) return true;
+      if (isApiAuthRoute || isInviteRoute || isPortalRoute || isPublicPage) return true;
 
       if (isAuthRoute) {
-        if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
+        if (isLoggedIn) return Response.redirect(new URL('/dashboard', nextUrl));
         return true;
       }
 

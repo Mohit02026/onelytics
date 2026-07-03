@@ -83,22 +83,22 @@ export function GbpOverviewCards({ data }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-4">
+    <div className="flex gap-3 overflow-x-auto px-0.5 pt-0.5 pb-2 scroll-smooth">
       {cards.map((card) => (
-        <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+        <Card key={card.label} className="flex-none w-44 dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 leading-tight">
                   {card.label}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{card.value}</p>
                 {card.sub && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{card.sub}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 leading-tight">{card.sub}</p>
                 )}
               </div>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ml-2 ${card.bg}`}>
-                <card.icon className={`w-4 h-4 ${card.color}`} />
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${card.bg}`}>
+                <card.icon className={`w-3.5 h-3.5 ${card.color}`} />
               </div>
             </div>
           </CardContent>

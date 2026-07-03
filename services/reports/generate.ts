@@ -267,27 +267,27 @@ export async function generateReport(
       delta: pctDelta(totalConversions, prevConversions),
       format: 'number',
     },
-    {
+    ...(has('ga4') ? [{
       label: 'Organic Sessions',
       current: organicClicks,
       previous: prevOrganicClicks,
       delta: pctDelta(organicClicks, prevOrganicClicks),
-      format: 'number',
-    },
-    {
+      format: 'number' as const,
+    }] : []),
+    ...(has('gsc') ? [{
       label: 'Organic Clicks (GSC)',
       current: organicKeywordClicks,
       previous: prevOrganicKeywordClicks,
       delta: pctDelta(organicKeywordClicks, prevOrganicKeywordClicks),
-      format: 'number',
-    },
-    {
+      format: 'number' as const,
+    }] : []),
+    ...(has('gbp') ? [{
       label: 'Local Profile Views',
       current: gbpViews,
       previous: prevGbpViews,
       delta: pctDelta(gbpViews, prevGbpViews),
-      format: 'number',
-    },
+      format: 'number' as const,
+    }] : []),
   ]
 
   // Build daily spend combining all channels

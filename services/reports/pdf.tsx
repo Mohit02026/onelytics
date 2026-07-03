@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 import type { ReportData } from '@/services/reports/generate'
@@ -386,7 +387,7 @@ export const PdfDocument = ({ data, title, startDate, endDate, createdAt }: { da
                       { label: 'Position', w: '20%' },
                     ]}
                     rows={p.gsc.keywords.slice(0, 15).map((k: any) => [
-                      String(k.keyword), fmtN(k.clicks), fmtN(k.impressions), n(k.position).toFixed(1) + (k.positionChange ? ` (${fmtDelta(-k.positionChange)})` : '')
+                      String(k.query), fmtN(k.clicks), fmtN(k.impressions), n(k.position).toFixed(1) + (k.positionChange ? ` (${fmtDelta(-k.positionChange)})` : '')
                     ])}
                   />
                 </View>
