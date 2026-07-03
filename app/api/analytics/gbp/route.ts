@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   if (!account) return Response.json({ error: 'Google not connected' }, { status: 404 })
 
   const meta = account.metadata as Record<string, string> | null
-  const locationName = meta?.gbpLocationName ?? ''
+  const locationName = meta?.gbpLocationId ?? ''
 
   const cacheKey = `${startDate}:${endDate}`
   const cached = await prisma.analyticsCache.findUnique({

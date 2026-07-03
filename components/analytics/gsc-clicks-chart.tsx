@@ -42,7 +42,6 @@ export function GscClicksChart({ data }: Props) {
     label: formatDate(row.date),
   }))
 
-  const tickInterval = data.length > 30 ? 6 : data.length > 14 ? 3 : 1
   const activeMetrics = METRICS.filter((m) => active.has(m.key))
   const hasLeft = activeMetrics.some((m) => m.axis === 'left')
   const hasRight = activeMetrics.some((m) => m.axis === 'right')
@@ -86,7 +85,7 @@ export function GscClicksChart({ data }: Props) {
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={chartData} margin={{ top: 4, right: hasRight ? 48 : 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} />
             {hasLeft && (
               <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={44} tickFormatter={fmtRight} />
             )}

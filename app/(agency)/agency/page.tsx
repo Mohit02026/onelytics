@@ -166,7 +166,7 @@ export default function AgencyPage() {
         {workspaces.map((ws) => (
           <div
             key={ws.id}
-            className={`rounded-xl border bg-white dark:bg-gray-900 p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${
+            className={`rounded-xl border bg-white dark:bg-gray-900 p-5 flex flex-col gap-4 transition-shadow hover:shadow-md h-full ${
               ws.isActive
                 ? 'border-blue-200 dark:border-blue-700 ring-1 ring-blue-200 dark:ring-blue-700'
                 : 'border-gray-200 dark:border-gray-800'
@@ -215,25 +215,27 @@ export default function AgencyPage() {
             )}
 
             {/* Action */}
-            {ws.isActive ? (
-              <Link href="/">
-                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                  View Dashboard <ArrowRight className="w-3 h-3 ml-1" />
+            <div className="mt-auto">
+              {ws.isActive ? (
+                <Link href="/" className="block w-full">
+                  <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                    Open Dashboard <ArrowRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  size="sm"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => enterWorkspace(ws.id)}
+                  disabled={switching === ws.id}
+                >
+                  {switching === ws.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <>Open Dashboard <ArrowRight className="w-3 h-3 ml-1" /></>
+                  }
                 </Button>
-              </Link>
-            ) : (
-              <Button
-                size="sm"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => enterWorkspace(ws.id)}
-                disabled={switching === ws.id}
-              >
-                {switching === ws.id
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <>Enter Workspace <ArrowRight className="w-3 h-3 ml-1" /></>
-                }
-              </Button>
-            )}
+              )}
+            </div>
           </div>
         ))}
 

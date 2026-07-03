@@ -8,7 +8,7 @@ export default function TermsPage() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-16 text-gray-800">
       <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
-      <p className="text-sm text-gray-500 mb-10">Last updated: May 24, 2026</p>
+      <p className="text-sm text-gray-500 mb-10">Last updated: July 3, 2026</p>
 
       <section className="mb-8">
         <h2 className="text-xl font-semibold mb-3">1. Acceptance of Terms</h2>
@@ -22,7 +22,7 @@ export default function TermsPage() {
         <h2 className="text-xl font-semibold mb-3">2. Description of Service</h2>
         <p className="text-gray-700 leading-relaxed">
           Onelytics is a marketing analytics platform that aggregates data from connected advertising
-          and analytics accounts (Google Ads, Google Analytics, Meta Ads, LinkedIn, TikTok, WordPress)
+          and analytics accounts (Google Ads, Google Analytics, Google Business Profile, Meta Ads, LinkedIn, TikTok, WordPress)
           into a unified dashboard and reporting tool for marketing agencies and businesses.
         </p>
       </section>

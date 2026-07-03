@@ -40,7 +40,6 @@ export function MetaSpendChart({ data }: Props) {
   const [active, setActive] = useState<Set<string>>(new Set(['spend', 'reach']))
 
   const chartData = data.map((row) => ({ ...row, label: formatDate(row.date) }))
-  const tickInterval = data.length > 30 ? 6 : data.length > 14 ? 3 : 1
   const activeMetrics = METRICS.filter((m) => active.has(m.key))
   const hasLeft = activeMetrics.some((m) => m.axis === 'left')
   const hasRight = activeMetrics.some((m) => m.axis === 'right')
@@ -92,7 +91,7 @@ export function MetaSpendChart({ data }: Props) {
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} />
             {hasLeft && (
               <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
             )}

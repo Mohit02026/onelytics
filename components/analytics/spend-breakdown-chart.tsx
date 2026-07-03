@@ -33,8 +33,6 @@ const CHANNEL_META = {
 
 export function SpendBreakdownChart({ data, connected, tiktokAdSpend = 0, linkedinAdSpend = 0 }: Props) {
   const chartData = data.map((row) => ({ ...row, label: formatDate(row.date) }))
-  const tickInterval = data.length > 30 ? 6 : data.length > 14 ? 3 : 1
-
   const showGoogle = connected.google
   const showMeta = connected.meta
   const showTiktok = tiktokAdSpend > 0
@@ -61,7 +59,7 @@ export function SpendBreakdownChart({ data, connected, tiktokAdSpend = 0, linked
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} />
             <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => `$${v}`} />
             <Tooltip
               contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}

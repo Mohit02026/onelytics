@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   LayoutDashboard,
@@ -19,7 +18,6 @@ import {
   Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 
 const topItems = [
@@ -44,18 +42,6 @@ export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const isOrgOwner = session?.user?.orgRole === 'OWNER'
-  const [connectedCount, setConnectedCount] = useState<number | null>(null)
-
-  useEffect(() => {
-    fetch('/api/integrations/status')
-      .then((r) => r.json())
-      .then((s) => {
-        const googleFull = s.google && !!s.propertyId && !!s.gscSiteUrl
-        const count = [googleFull, s.meta && !!s.metaAdAccountId, s.wordpress].filter(Boolean).length
-        setConnectedCount(count)
-      })
-      .catch(() => setConnectedCount(0))
-  }, [pathname])
 
   return (
     <div className="w-[220px] flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-full">
@@ -118,28 +104,6 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* Status Area */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-          Connections
-        </div>
-        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 py-1">
-          <span className="flex items-center gap-2">
-            <div
-              className={cn(
-                'w-2 h-2 rounded-full',
-                connectedCount && connectedCount > 0
-                  ? 'bg-green-500'
-                  : 'bg-gray-300 dark:bg-gray-600'
-              )}
-            />
-            Integrations
-          </span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {connectedCount ?? '—'}/3
-          </Badge>
-        </div>
-      </div>
     </div>
   )
 }

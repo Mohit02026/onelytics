@@ -23,6 +23,8 @@ const METRICS = [
   { key: 'directionRequests', label: 'Directions', color: '#f59e0b', axis: 'right' as const },
   { key: 'photoViews', label: 'Photo Views', color: '#ec4899', axis: 'right' as const },
   { key: 'calls', label: 'Phone Calls', color: '#16a34a', axis: 'right' as const },
+  { key: 'conversations', label: 'Conversations', color: '#14b8a6', axis: 'right' as const },
+  { key: 'bookings', label: 'Bookings', color: '#7c3aed', axis: 'right' as const },
 ]
 
 export function GbpViewsChart({ data }: Props) {
@@ -38,8 +40,6 @@ export function GbpViewsChart({ data }: Props) {
   const activeMetrics = METRICS.filter((m) => active.has(m.key))
   const hasLeft = activeMetrics.some((m) => m.axis === 'left')
   const hasRight = activeMetrics.some((m) => m.axis === 'right')
-  const tickInterval = data.length > 30 ? 6 : data.length > 14 ? 3 : 1
-
   function toggle(key: string) {
     setActive((prev) => {
       const next = new Set(prev)
@@ -87,7 +87,7 @@ export function GbpViewsChart({ data }: Props) {
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
-            <XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} interval={tickInterval} minTickGap={30} />
+            <XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} />
             {hasLeft && (
               <YAxis yAxisId="left" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtNum} width={44} />
             )}

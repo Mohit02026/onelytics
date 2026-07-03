@@ -8,7 +8,7 @@ export default function PrivacyPage() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-16 text-gray-800">
       <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
-      <p className="text-sm text-gray-500 mb-10">Last updated: May 24, 2026</p>
+      <p className="text-sm text-gray-500 mb-10">Last updated: July 3, 2026</p>
 
       <section className="mb-8">
         <h2 className="text-xl font-semibold mb-3">1. Introduction</h2>
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         </p>
         <ul className="list-disc pl-6 space-y-1 text-gray-700">
           <li>Meta (Facebook / Instagram) — via Meta Marketing API</li>
-          <li>Google — via Google Ads API, Google Analytics Data API, and Search Console API</li>
+          <li>Google — via Google Ads API, Google Analytics Data API, Search Console API, and Google Business Profile Performance API</li>
           <li>LinkedIn — via LinkedIn Marketing Developer Platform</li>
           <li>TikTok — via TikTok for Business API</li>
           <li>WordPress — via WordPress REST API</li>

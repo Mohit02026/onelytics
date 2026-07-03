@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Navbar } from '@/components/navbar';
 import { OnboardingWizard } from '@/components/onboarding-wizard';
+import { WorkspaceContent } from '@/components/workspace-content';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -10,7 +11,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
         <main className="flex-1 overflow-y-auto p-8">
-          {children}
+          <WorkspaceContent>{children}</WorkspaceContent>
         </main>
       </div>
       <OnboardingWizard />

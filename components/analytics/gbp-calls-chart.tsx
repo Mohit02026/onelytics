@@ -42,7 +42,8 @@ export function GbpCallsChart({ data }: Props) {
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              minTickGap={30}
+              interval="preserveStartEnd"
+              minTickGap={55}
             />
             <YAxis stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}`} />
             <Tooltip

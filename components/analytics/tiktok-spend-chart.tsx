@@ -41,7 +41,6 @@ export function TikTokSpendChart({ data }: Props) {
   const [active, setActive] = useState<Set<string>>(new Set(['spend', 'impressions']))
 
   const chartData = data.map((row) => ({ ...row, label: formatDate(row.date) }))
-  const tickInterval = data.length > 30 ? 6 : data.length > 14 ? 3 : 1
   const activeMetrics = METRICS.filter((m) => active.has(m.key))
   const hasLeft = activeMetrics.some((m) => m.axis === 'left')
   const hasRight = activeMetrics.some((m) => m.axis === 'right')
@@ -93,7 +92,7 @@ export function TikTokSpendChart({ data }: Props) {
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-gray-800" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} />
             {hasLeft && (
               <YAxis yAxisId="left" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={48} />
             )}

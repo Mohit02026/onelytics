@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { Eye, PhoneCall, MousePointerClick, Star, Navigation, Camera } from 'lucide-react'
+import { Eye, PhoneCall, MousePointerClick, Star, Navigation, Camera, MessageSquare, CalendarCheck } from 'lucide-react'
 import type { GbpReport } from '@/services/google/gbp'
 
 function fmt(n: number | null | undefined) {
@@ -61,15 +61,29 @@ export function GbpOverviewCards({ data }: Props) {
     },
     {
       label: 'Total Reviews',
-      value: data.totalReviews > 0 ? fmt(data.totalReviews) : '—',
+      value: fmt(data.totalReviews ?? 0),
       icon: Star,
       color: 'text-yellow-600 dark:text-yellow-400',
       bg: 'bg-yellow-50 dark:bg-yellow-950',
     },
+    {
+      label: 'Conversations',
+      value: fmt(data.conversations ?? 0),
+      icon: MessageSquare,
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-950',
+    },
+    {
+      label: 'Bookings',
+      value: fmt(data.bookings ?? 0),
+      icon: CalendarCheck,
+      color: 'text-violet-600 dark:text-violet-400',
+      bg: 'bg-violet-50 dark:bg-violet-950',
+    },
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-4">
       {cards.map((card) => (
         <Card key={card.label} className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">
