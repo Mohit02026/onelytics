@@ -32,7 +32,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { email, role } = parsed.data
+  const { email: rawEmail, role } = parsed.data
+  const email = rawEmail.toLowerCase()
 
   // Check already a member
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })

@@ -20,7 +20,7 @@ test('E1+E2: signup lands on dashboard and shows empty state for fresh account',
   await page.click('button[type="submit"]')
 
   // E1: redirect to dashboard after successful signup + auto-signin
-  await page.waitForURL('/', { timeout: 15_000 })
+  await page.waitForURL('/dashboard', { timeout: 15_000 })
 
   // E2: fresh account with no integrations shows the empty-state CTA
   await expect(

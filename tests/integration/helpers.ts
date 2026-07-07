@@ -74,14 +74,14 @@ export async function addUserToWorkspace(
 }
 
 /** Fake session object matching the shape routes expect from auth(). */
-export function fakeSession(userId: string, workspaceId: string) {
+export function fakeSession(userId: string, workspaceId: string, organizationId: string | null = null) {
   return {
     user: {
       id: userId,
       email: 'test@onelytics-test.invalid',
       name: 'Test User',
       workspaceId,
-      organizationId: null,
+      organizationId,
       onboarded: true,
       orgRole: undefined,
     },

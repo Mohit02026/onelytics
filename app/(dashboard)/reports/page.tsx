@@ -4,7 +4,17 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, FileText, Plus, Trash2, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Loader2, FileText, Plus, Trash2, CheckCircle2, XCircle, Clock, Mail, X } from 'lucide-react'
+
+interface WeeklyReportSettings {
+  enabled: boolean
+  recipients: string[]
+  lastSentAt: string | null
+  senderEmail: string | null
+  viewerMailboxConnected: boolean
+  viewerMailboxEmail: string | null
+}
 
 interface ReportSummary {
   id: string
@@ -21,13 +31,60 @@ export default function ReportsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   // Workspace role — VIEWERs cannot generate reports. Default true while loading.
   const [canGenerate, setCanGenerate] = useState(true)
+  const [role, setRole] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/workspace')
       .then((r) => r.json())
-      .then((d) => { if (d.role) setCanGenerate(d.role !== 'VIEWER') })
+      .then((d) => { if (d.role) setCanGenerate(d.role !== 'VIEWER'); setRole(d.role ?? null) })
       .catch(() => {})
   }, [])
+
+  const canManageEmailReports = role === 'OWNER' || role === 'ADMIN'
+  const [weeklyReport, setWeeklyReport] = useState<WeeklyReportSettings | null>(null)
+  const [wrLoading, setWrLoading] = useState(true)
+  const [wrSaving, setWrSaving] = useState(false)
+  const [wrError, setWrError] = useState<string | null>(null)
+  const [newRecipient, setNewRecipient] = useState('')
+
+  useEffect(() => {
+    fetch('/api/workspace/weekly-report')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setWeeklyReport(d))
+      .catch(() => {})
+      .finally(() => setWrLoading(false))
+  }, [])
+
+  async function patchWeeklyReport(body: Record<string, unknown>) {
+    setWrSaving(true)
+    setWrError(null)
+    try {
+      const res = await fetch('/api/workspace/weekly-report', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (!res.ok) setWrError(d.error ?? 'Failed to update')
+      else setWeeklyReport((p) => (p ? { ...p, ...d } : p))
+    } catch {
+      setWrError('Something went wrong')
+    } finally {
+      setWrSaving(false)
+    }
+  }
+
+  function addRecipient() {
+    const email = newRecipient.trim().toLowerCase()
+    if (!email || !weeklyReport || weeklyReport.recipients.includes(email)) return
+    patchWeeklyReport({ recipients: [...weeklyReport.recipients, email] })
+    setNewRecipient('')
+  }
+
+  function removeRecipient(email: string) {
+    if (!weeklyReport) return
+    patchWeeklyReport({ recipients: weeklyReport.recipients.filter((r) => r !== email) })
+  }
 
   async function loadReports() {
     try {
@@ -80,6 +137,74 @@ export default function ReportsPage() {
           </Link>
         )}
       </div>
+
+      {canManageEmailReports && !wrLoading && weeklyReport && (
+        <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <CardContent className="py-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-gray-500" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Weekly report email</h3>
+            </div>
+
+            {!weeklyReport.enabled && !weeklyReport.viewerMailboxConnected ? (
+              <p className="text-sm text-gray-500">
+                Connect your email in{' '}
+                <Link href="/settings/profile" className="text-blue-600 hover:underline">Settings</Link>
+                {' '}to enable automatic weekly sending.
+              </p>
+            ) : (
+              <>
+                {weeklyReport.enabled && (
+                  <p className="text-sm text-gray-500">
+                    Sending as <span className="font-medium text-gray-700 dark:text-gray-300">{weeklyReport.senderEmail}</span>
+                    {weeklyReport.lastSentAt && (
+                      <> · last sent {new Date(weeklyReport.lastSentAt).toLocaleDateString()}</>
+                    )}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {weeklyReport.recipients.map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300"
+                    >
+                      {email}
+                      <button onClick={() => removeRecipient(email)} className="text-gray-400 hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 max-w-sm">
+                  <Input
+                    type="email"
+                    value={newRecipient}
+                    onChange={(e) => setNewRecipient(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
+                    placeholder="client@example.com"
+                    className="dark:bg-gray-800 dark:border-gray-700"
+                  />
+                  <Button onClick={addRecipient} disabled={wrSaving} size="sm" variant="outline">Add</Button>
+                </div>
+
+                <Button
+                  onClick={() => patchWeeklyReport({ enabled: !weeklyReport.enabled })}
+                  disabled={wrSaving || (!weeklyReport.enabled && weeklyReport.recipients.length === 0)}
+                  size="sm"
+                  className={weeklyReport.enabled ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}
+                  variant={weeklyReport.enabled ? 'outline' : 'default'}
+                >
+                  {wrSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : weeklyReport.enabled ? 'Turn off' : 'Turn on'}
+                </Button>
+              </>
+            )}
+
+            {wrError && <p className="text-sm text-red-600 dark:text-red-400">{wrError}</p>}
+          </CardContent>
+        </Card>
+      )}
 
       {loading && (
         <div className="flex items-center gap-2 text-gray-500 py-8">

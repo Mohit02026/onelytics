@@ -61,7 +61,7 @@ test('E6: MEMBER sees settings page but Save Changes and Delete Workspace are ab
     await page.fill('#email', ROLE_MEMBER_EMAIL)
     await page.fill('#password', ROLE_PASSWORD)
     await page.click('button[type="submit"]')
-    await page.waitForURL('/', { timeout: 15_000 })
+    await page.waitForURL('/dashboard', { timeout: 15_000 })
 
     // Navigate to settings
     await page.goto('/settings')
@@ -146,7 +146,7 @@ test('E7: VIEWER cannot generate a report — button hidden and /reports/new sho
     await page.fill('#email', ROLE_VIEWER_EMAIL)
     await page.fill('#password', ROLE_PASSWORD)
     await page.click('button[type="submit"]')
-    await page.waitForURL('/', { timeout: 15_000 })
+    await page.waitForURL('/dashboard', { timeout: 15_000 })
 
     // Reports list page — "New Report" button must not be visible for VIEWER
     await page.goto('/reports')

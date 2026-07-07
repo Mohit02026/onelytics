@@ -52,7 +52,7 @@ export interface ReportData {
   }
 }
 
-function prevRange(startDate: string, endDate: string) {
+export function prevRange(startDate: string, endDate: string) {
   const start = new Date(startDate)
   const end = new Date(endDate)
   const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
@@ -92,69 +92,39 @@ const PLATFORM_SLUG: Record<string, string> = {
   wordpress: 'wordpress',
 }
 
-export async function generateReport(
-  workspaceId: string,
-  startDate: string,
-  endDate: string,
-  title: string,
-  baseUrl: string,
-  authCookie: string,
-  selectedPlatforms?: string[]
-): Promise<ReportData> {
-  const prev = prevRange(startDate, endDate)
-  const reqHeaders = { Cookie: authCookie }
+export interface AssembleReportInput {
+  title: string
+  startDate: string
+  endDate: string
+  prev: { startDate: string; endDate: string }
+  sel: string[]
+  ga4: Record<string, unknown> | null
+  ads: Record<string, unknown> | null
+  meta: Record<string, unknown> | null
+  tiktok: Record<string, unknown> | null
+  linkedin: Record<string, unknown> | null
+  gsc: Record<string, unknown> | null
+  gbp: Record<string, unknown> | null
+  wordpress: Record<string, unknown> | null
+  pAds: Record<string, unknown> | null
+  pMeta: Record<string, unknown> | null
+  pTiktok: Record<string, unknown> | null
+  pLinkedin: Record<string, unknown> | null
+  pGa4: Record<string, unknown> | null
+  pGsc: Record<string, unknown> | null
+  pGbp: Record<string, unknown> | null
+}
 
-  // Which platforms to fetch (default: all)
-  const sel = selectedPlatforms ?? Object.keys(PLATFORM_SLUG)
+// Pure assembly — takes already-resolved per-platform data and builds the
+// ReportData shape. Shared by the cookie-forwarding path (generateReport)
+// and the headless path (generateReportForWorkspace) so both stay in sync.
+export function assembleReportData(input: AssembleReportInput): ReportData {
+  const {
+    title, startDate, endDate, prev, sel,
+    ga4, ads, meta, tiktok, linkedin, gsc, gbp, wordpress,
+    pAds, pMeta, pTiktok, pLinkedin, pGa4, pGsc, pGbp,
+  } = input
   const has = (id: string) => sel.includes(id)
-
-  const qs = (s: string, e: string) => `?startDate=${s}&endDate=${e}`
-
-  // Non-wordpress platforms fetched with date range (current + previous period)
-  const dateRangePlatforms = ['ga4', 'googleAds', 'meta', 'tiktok', 'linkedin', 'gsc', 'gbp']
-    .filter(has)
-  const slugs = dateRangePlatforms.map((id) => PLATFORM_SLUG[id])
-
-  const fetchOne = (slug: string, start: string, end: string) =>
-    fetchWithTimeout(`${baseUrl}/api/analytics/${slug}${qs(start, end)}`, reqHeaders)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
-
-  const [currentResults, prevResults, wpResult] = await Promise.all([
-    Promise.allSettled(slugs.map((s) => fetchOne(s, startDate, endDate))),
-    Promise.allSettled(slugs.map((s) => fetchOne(s, prev.startDate, prev.endDate))),
-    has('wordpress')
-      ? fetchWithTimeout(`${baseUrl}/api/analytics/wordpress`, reqHeaders)
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      : Promise.resolve(null),
-  ])
-
-  // Build lookup by platform ID
-  const cur: Record<string, unknown> = {}
-  const prv: Record<string, unknown> = {}
-  dateRangePlatforms.forEach((id, i) => {
-    cur[id] = currentResults[i].status === 'fulfilled' ? currentResults[i].value : null
-    prv[id] = prevResults[i].status === 'fulfilled' ? prevResults[i].value : null
-  })
-
-  // Convenience aliases (null when not selected)
-  const ga4 = (cur.ga4 ?? null) as Record<string, unknown> | null
-  const ads = (cur.googleAds ?? null) as Record<string, unknown> | null
-  const meta = (cur.meta ?? null) as Record<string, unknown> | null
-  const tiktok = (cur.tiktok ?? null) as Record<string, unknown> | null
-  const linkedin = (cur.linkedin ?? null) as Record<string, unknown> | null
-  const gsc = (cur.gsc ?? null) as Record<string, unknown> | null
-  const gbp = (cur.gbp ?? null) as Record<string, unknown> | null
-  const wordpress = wpResult as Record<string, unknown> | null
-
-  const pAds = (prv.googleAds ?? null) as Record<string, unknown> | null
-  const pMeta = (prv.meta ?? null) as Record<string, unknown> | null
-  const pTiktok = (prv.tiktok ?? null) as Record<string, unknown> | null
-  const pLinkedin = (prv.linkedin ?? null) as Record<string, unknown> | null
-  const pGa4 = (prv.ga4 ?? null) as Record<string, unknown> | null
-  const pGsc = (prv.gsc ?? null) as Record<string, unknown> | null
-  const pGbp = (prv.gbp ?? null) as Record<string, unknown> | null
 
   // Typed overview accessor helper
   const ov = (d: Record<string, unknown> | null) =>
@@ -320,10 +290,6 @@ export async function generateReport(
       linkedin: Math.round(v.linkedin * 100) / 100,
     }))
 
-  // AI narrative
-  // AI narrative is generated separately (non-blocking) — returns empty string here
-  const aiNarrative = ''
-
   return {
     title,
     dateRange: { startDate, endDate },
@@ -339,20 +305,82 @@ export async function generateReport(
     channels,
     dailySpend,
     momComparisons,
-    aiNarrative,
+    aiNarrative: '',
     generatedAt: new Date().toISOString(),
     selectedPlatforms: sel,
-    platforms: {
-      googleAds: ads,
-      meta,
-      tiktok,
-      linkedin,
-      ga4,
-      gsc,
-      gbp,
-      wordpress,
-    },
+    platforms: { googleAds: ads, meta, tiktok, linkedin, ga4, gsc, gbp, wordpress },
   }
+}
+
+export async function generateReport(
+  workspaceId: string,
+  startDate: string,
+  endDate: string,
+  title: string,
+  baseUrl: string,
+  authCookie: string,
+  selectedPlatforms?: string[]
+): Promise<ReportData> {
+  const prev = prevRange(startDate, endDate)
+  const reqHeaders = { Cookie: authCookie }
+
+  // Which platforms to fetch (default: all)
+  const sel = selectedPlatforms ?? Object.keys(PLATFORM_SLUG)
+  const has = (id: string) => sel.includes(id)
+
+  const qs = (s: string, e: string) => `?startDate=${s}&endDate=${e}`
+
+  // Non-wordpress platforms fetched with date range (current + previous period)
+  const dateRangePlatforms = ['ga4', 'googleAds', 'meta', 'tiktok', 'linkedin', 'gsc', 'gbp']
+    .filter(has)
+  const slugs = dateRangePlatforms.map((id) => PLATFORM_SLUG[id])
+
+  const fetchOne = (slug: string, start: string, end: string) =>
+    fetchWithTimeout(`${baseUrl}/api/analytics/${slug}${qs(start, end)}`, reqHeaders)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+
+  const [currentResults, prevResults, wpResult] = await Promise.all([
+    Promise.allSettled(slugs.map((s) => fetchOne(s, startDate, endDate))),
+    Promise.allSettled(slugs.map((s) => fetchOne(s, prev.startDate, prev.endDate))),
+    has('wordpress')
+      ? fetchWithTimeout(`${baseUrl}/api/analytics/wordpress`, reqHeaders)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      : Promise.resolve(null),
+  ])
+
+  // Build lookup by platform ID
+  const cur: Record<string, unknown> = {}
+  const prv: Record<string, unknown> = {}
+  dateRangePlatforms.forEach((id, i) => {
+    cur[id] = currentResults[i].status === 'fulfilled' ? currentResults[i].value : null
+    prv[id] = prevResults[i].status === 'fulfilled' ? prevResults[i].value : null
+  })
+
+  // Convenience aliases (null when not selected)
+  const ga4 = (cur.ga4 ?? null) as Record<string, unknown> | null
+  const ads = (cur.googleAds ?? null) as Record<string, unknown> | null
+  const meta = (cur.meta ?? null) as Record<string, unknown> | null
+  const tiktok = (cur.tiktok ?? null) as Record<string, unknown> | null
+  const linkedin = (cur.linkedin ?? null) as Record<string, unknown> | null
+  const gsc = (cur.gsc ?? null) as Record<string, unknown> | null
+  const gbp = (cur.gbp ?? null) as Record<string, unknown> | null
+  const wordpress = wpResult as Record<string, unknown> | null
+
+  const pAds = (prv.googleAds ?? null) as Record<string, unknown> | null
+  const pMeta = (prv.meta ?? null) as Record<string, unknown> | null
+  const pTiktok = (prv.tiktok ?? null) as Record<string, unknown> | null
+  const pLinkedin = (prv.linkedin ?? null) as Record<string, unknown> | null
+  const pGa4 = (prv.ga4 ?? null) as Record<string, unknown> | null
+  const pGsc = (prv.gsc ?? null) as Record<string, unknown> | null
+  const pGbp = (prv.gbp ?? null) as Record<string, unknown> | null
+
+  return assembleReportData({
+    title, startDate, endDate, prev, sel,
+    ga4, ads, meta, tiktok, linkedin, gsc, gbp, wordpress,
+    pAds, pMeta, pTiktok, pLinkedin, pGa4, pGsc, pGbp,
+  })
 }
 
 export async function generateAINarrative(reportData: ReportData): Promise<string> {

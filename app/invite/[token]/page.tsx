@@ -52,7 +52,7 @@ export default function InvitePage() {
         setAcceptError(data.error ?? 'Failed to join workspace.')
       } else {
         setAccepted(true)
-        setTimeout(() => router.push('/'), 2000)
+        setTimeout(() => router.push('/dashboard'), 2000)
       }
     } catch {
       setAcceptError('Something went wrong. Please try again.')
@@ -94,7 +94,7 @@ export default function InvitePage() {
               <XCircle className="w-10 h-10 text-red-500" />
               <p className="font-medium text-gray-900 dark:text-white">Invalid Invite</p>
               <p className="text-sm text-gray-500">{loadError}</p>
-              <Button variant="outline" onClick={() => router.push('/')}>
+              <Button variant="outline" onClick={() => router.push('/dashboard')}>
                 Go to Dashboard
               </Button>
             </div>
@@ -149,7 +149,7 @@ export default function InvitePage() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/dashboard')}
                   disabled={accepting}
                 >
                   Decline

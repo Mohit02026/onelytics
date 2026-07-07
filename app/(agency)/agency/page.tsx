@@ -52,7 +52,7 @@ export default function AgencyPage() {
       })
       if (res.ok) {
         await update({ workspaceId })
-        router.push('/')
+        router.push('/dashboard')
       }
     } finally {
       setSwitching(null)

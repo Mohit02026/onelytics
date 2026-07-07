@@ -118,4 +118,38 @@ describe('POST /api/workspace/invite', () => {
     const res = await POST(makeReq({ email: MEMBER_EMAIL, role: 'VIEWER' }))
     expect(res.status).toBe(409)
   })
+
+  // I57 — regression for the case-insensitivity fix: inviting an existing
+  // member by a differently-cased email must still be detected as a member,
+  // not silently miss the match because User.email is stored lowercase.
+  it('I57: inviting an existing member with mixed-case email still returns 409', async () => {
+    vi.mocked(auth).mockResolvedValue(fakeSession(ownerData.user.id, ownerData.workspace.id) as any)
+    const mixedCase = MEMBER_EMAIL.replace('invite-member', 'Invite-Member')
+    const res = await POST(makeReq({ email: mixedCase, role: 'VIEWER' }))
+    expect(res.status).toBe(409)
+  })
+
+  // I58
+  it('I58: re-inviting with a different case replaces the previous pending invite, not duplicates it', async () => {
+    vi.mocked(auth).mockResolvedValue(fakeSession(ownerData.user.id, ownerData.workspace.id) as any)
+    const email = 'case-invite@onelytics-test.invalid'
+
+    await POST(makeReq({ email, role: 'MEMBER' }))
+    const res2 = await POST(makeReq({ email: 'Case-Invite@Onelytics-Test.invalid', role: 'VIEWER' }))
+    expect(res2.status).toBe(200)
+
+    const invites = await testPrisma.workspaceInvite.findMany({
+      where: { workspaceId: ownerData.workspace.id, email },
+    })
+    expect(invites).toHaveLength(1)
+    expect(invites[0].role).toBe('VIEWER')
+  })
+
+  // I59
+  it('I59: the stored invite email is lowercased regardless of input case', async () => {
+    vi.mocked(auth).mockResolvedValue(fakeSession(ownerData.user.id, ownerData.workspace.id) as any)
+    const res = await POST(makeReq({ email: 'MixedCase@OneLytics-Test.invalid', role: 'MEMBER' }))
+    const body = await res.json()
+    expect(body.email).toBe('mixedcase@onelytics-test.invalid')
+  })
 })

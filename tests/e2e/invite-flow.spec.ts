@@ -106,7 +106,7 @@ test('E5: accept invite → land on correct workspace dashboard', async ({ page 
     await page.fill('#email', INVITE_MEMBER_EMAIL)
     await page.fill('#password', INVITE_PASSWORD)
     await page.click('button[type="submit"]')
-    await page.waitForURL('/', { timeout: 15_000 })
+    await page.waitForURL('/dashboard', { timeout: 15_000 })
 
     // --- Navigate to the invite page ---
     await page.goto(`/invite/${token}`)
@@ -126,8 +126,8 @@ test('E5: accept invite → land on correct workspace dashboard', async ({ page 
       page.getByText('Joined successfully!')
     ).toBeVisible({ timeout: 10_000 })
 
-    // After 2-second delay the page redirects to "/"
-    await page.waitForURL('/', { timeout: 10_000 })
+    // After 2-second delay the page redirects to "/dashboard"
+    await page.waitForURL('/dashboard', { timeout: 10_000 })
   } finally {
     // --- Cleanup ---
     await cleanupUserByEmail(INVITE_OWNER_EMAIL)
