@@ -20,7 +20,8 @@ export const authConfig = {
         nextUrl.pathname === '/pricing' ||
         nextUrl.pathname === '/privacy' ||
         nextUrl.pathname === '/terms' ||
-        nextUrl.pathname.startsWith('/google');
+        nextUrl.pathname.startsWith('/google') ||
+        nextUrl.pathname.startsWith('/landing-test');
 
       if (isApiAuthRoute || isInviteRoute || isPortalRoute || isPublicPage) return true;
 

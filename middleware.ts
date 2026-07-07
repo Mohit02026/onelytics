@@ -81,7 +81,8 @@ export default auth(async (req) => {
     pathname === '/' ||
     pathname === '/pricing' ||
     pathname === '/privacy' ||
-    pathname === '/terms'
+    pathname === '/terms' ||
+    pathname.startsWith('/landing-test')
 
   if (!isPublic && !session) {
     return NextResponse.redirect(new URL('/login', req.url))
