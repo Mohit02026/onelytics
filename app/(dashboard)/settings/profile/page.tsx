@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, User, Lock, Mail, CheckCircle2 } from 'lucide-react'
+import { Loader2, User, Lock } from 'lucide-react'
 
 const TIMEZONES = [
   'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -26,7 +25,7 @@ interface Profile {
   timezone: string | null
 }
 
-function ProfilePageInner() {
+export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -41,13 +40,6 @@ function ProfilePageInner() {
   const [pwSaved, setPwSaved] = useState(false)
   const [pwError, setPwError] = useState<string | null>(null)
 
-  // Mailbox connection (used to send weekly reports from the account holder's own inbox)
-  const searchParams = useSearchParams()
-  const [mailboxEmail, setMailboxEmail] = useState<string | null>(null)
-  const [mailboxLoading, setMailboxLoading] = useState(true)
-  const [mailConnecting, setMailConnecting] = useState(false)
-  const [mailError, setMailError] = useState<string | null>(null)
-
   useEffect(() => {
     fetch('/api/user/profile')
       .then((r) => { if (!r.ok) throw new Error('Failed'); return r.json() })
@@ -55,45 +47,6 @@ function ProfilePageInner() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
-
-  useEffect(() => {
-    const errorParam = searchParams.get('mailError')
-    if (errorParam) {
-      setMailError(
-        errorParam === 'google_denied'
-          ? 'Google sign-in was cancelled.'
-          : 'Could not connect your email. Please try again.'
-      )
-    }
-    fetch('/api/workspace/weekly-report')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setMailboxEmail(d?.viewerMailboxEmail ?? null))
-      .catch(() => {})
-      .finally(() => setMailboxLoading(false))
-  }, [searchParams])
-
-  async function connectMailbox() {
-    setMailConnecting(true)
-    setMailError(null)
-    try {
-      const res = await fetch('/api/integrations/google-mail/connect')
-      const d = await res.json()
-      if (d.url) window.location.href = d.url
-      else setMailError('Could not start connection')
-    } catch { setMailError('Something went wrong') }
-    finally { setMailConnecting(false) }
-  }
-
-  async function disconnectMailbox() {
-    setMailConnecting(true)
-    setMailError(null)
-    try {
-      const res = await fetch('/api/integrations/google-mail/disconnect', { method: 'POST' })
-      if (res.ok) setMailboxEmail(null)
-      else setMailError('Could not disconnect')
-    } catch { setMailError('Something went wrong') }
-    finally { setMailConnecting(false) }
-  }
 
   async function saveProfile() {
     if (!profile) return
@@ -251,44 +204,6 @@ function ProfilePageInner() {
       <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Mail className="w-4 h-4" />Email Sending
-          </CardTitle>
-          <CardDescription>
-            Connect your inbox so automated weekly reports go out from your own email address.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 max-w-sm">
-          {mailboxLoading ? (
-            <div className="flex items-center gap-2 text-gray-500">
-              <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Loading…</span>
-            </div>
-          ) : mailboxEmail ? (
-            <>
-              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                Sending as <span className="font-medium">{mailboxEmail}</span>
-              </div>
-              <Button onClick={disconnectMailbox} disabled={mailConnecting} size="sm" variant="outline">
-                {mailConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Disconnect'}
-              </Button>
-            </>
-          ) : (
-            <Button
-              onClick={connectMailbox}
-              disabled={mailConnecting}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {mailConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect Gmail'}
-            </Button>
-          )}
-          {mailError && <p className="text-sm text-red-600 dark:text-red-400">{mailError}</p>}
-        </CardContent>
-      </Card>
-
-      <Card className="dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
             <Lock className="w-4 h-4" />Change Password
           </CardTitle>
           <CardDescription>Leave blank to keep your current password.</CardDescription>
@@ -333,13 +248,5 @@ function ProfilePageInner() {
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-export default function ProfilePage() {
-  return (
-    <Suspense>
-      <ProfilePageInner />
-    </Suspense>
   )
 }

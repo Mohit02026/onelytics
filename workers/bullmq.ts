@@ -7,11 +7,18 @@ export const syncQueue = new Queue('sync-jobs', {
   connection: redis,
 });
 
+// The pre-rewrite code registered these under different repeat options (no
+// tz, different pattern/name) — BullMQ keys repeatables by name+options, so
+// it never replaced them on its own. Remove the stale ones explicitly;
+// no-op once cleaned up.
+syncQueue.removeRepeatable('send-weekly-report', { pattern: '0 9 * * 1' });
+syncQueue.removeRepeatable('reconcile-bounces', { pattern: '0 8 * * *' });
+
 // Registering a repeatable job with the same name+pattern is idempotent in
 // BullMQ — safe to call on every process start, won't create duplicates.
-// Saturday 3:30pm IST. Bounce tracking is now Resend's own webhook
+// Friday 3:30pm IST. Bounce tracking is now Resend's own webhook
 // (app/api/webhooks/resend/route.ts) rather than a polling job.
-syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '30 15 * * 6', tz: 'Asia/Kolkata' } });
+syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '30 15 * * 5', tz: 'Asia/Kolkata' } });
 
 export const syncWorker = new Worker(
   'sync-jobs',
