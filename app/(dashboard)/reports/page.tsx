@@ -11,9 +11,6 @@ interface WeeklyReportSettings {
   enabled: boolean
   recipients: string[]
   lastSentAt: string | null
-  senderEmail: string | null
-  viewerMailboxConnected: boolean
-  viewerMailboxEmail: string | null
 }
 
 interface ReportSummary {
@@ -146,60 +143,48 @@ export default function ReportsPage() {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Weekly report email</h3>
             </div>
 
-            {!weeklyReport.enabled && !weeklyReport.viewerMailboxConnected ? (
-              <p className="text-sm text-gray-500">
-                Connect your email in{' '}
-                <Link href="/settings/profile" className="text-blue-600 hover:underline">Settings</Link>
-                {' '}to enable automatic weekly sending.
-              </p>
-            ) : (
-              <>
-                {weeklyReport.enabled && (
-                  <p className="text-sm text-gray-500">
-                    Sending as <span className="font-medium text-gray-700 dark:text-gray-300">{weeklyReport.senderEmail}</span>
-                    {weeklyReport.lastSentAt && (
-                      <> · last sent {new Date(weeklyReport.lastSentAt).toLocaleDateString()}</>
-                    )}
-                  </p>
-                )}
+            <p className="text-sm text-gray-500">
+              Sent from <span className="font-medium text-gray-700 dark:text-gray-300">reports@info.exchangefour.com</span>
+              {weeklyReport.enabled && weeklyReport.lastSentAt && (
+                <> · last sent {new Date(weeklyReport.lastSentAt).toLocaleDateString()}</>
+              )}
+            </p>
 
-                <div className="flex flex-wrap gap-2">
-                  {weeklyReport.recipients.map((email) => (
-                    <span
-                      key={email}
-                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300"
-                    >
-                      {email}
-                      <button onClick={() => removeRecipient(email)} className="text-gray-400 hover:text-red-500">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex gap-2 max-w-sm">
-                  <Input
-                    type="email"
-                    value={newRecipient}
-                    onChange={(e) => setNewRecipient(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
-                    placeholder="client@example.com"
-                    className="dark:bg-gray-800 dark:border-gray-700"
-                  />
-                  <Button onClick={addRecipient} disabled={wrSaving} size="sm" variant="outline">Add</Button>
-                </div>
-
-                <Button
-                  onClick={() => patchWeeklyReport({ enabled: !weeklyReport.enabled })}
-                  disabled={wrSaving || (!weeklyReport.enabled && weeklyReport.recipients.length === 0)}
-                  size="sm"
-                  className={weeklyReport.enabled ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}
-                  variant={weeklyReport.enabled ? 'outline' : 'default'}
+            <div className="flex flex-wrap gap-2">
+              {weeklyReport.recipients.map((email) => (
+                <span
+                  key={email}
+                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300"
                 >
-                  {wrSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : weeklyReport.enabled ? 'Turn off' : 'Turn on'}
-                </Button>
-              </>
-            )}
+                  {email}
+                  <button onClick={() => removeRecipient(email)} className="text-gray-400 hover:text-red-500">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="flex gap-2 max-w-sm">
+              <Input
+                type="email"
+                value={newRecipient}
+                onChange={(e) => setNewRecipient(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
+                placeholder="client@example.com"
+                className="dark:bg-gray-800 dark:border-gray-700"
+              />
+              <Button onClick={addRecipient} disabled={wrSaving} size="sm" variant="outline">Add</Button>
+            </div>
+
+            <Button
+              onClick={() => patchWeeklyReport({ enabled: !weeklyReport.enabled })}
+              disabled={wrSaving || (!weeklyReport.enabled && weeklyReport.recipients.length === 0)}
+              size="sm"
+              className={weeklyReport.enabled ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}
+              variant={weeklyReport.enabled ? 'outline' : 'default'}
+            >
+              {wrSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : weeklyReport.enabled ? 'Turn off' : 'Turn on'}
+            </Button>
 
             {wrError && <p className="text-sm text-red-600 dark:text-red-400">{wrError}</p>}
           </CardContent>

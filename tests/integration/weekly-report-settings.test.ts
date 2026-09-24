@@ -32,9 +32,8 @@ function patchReq(body: unknown) {
 async function resetWorkspace() {
   await testPrisma.workspace.update({
     where: { id: ownerData.workspace.id },
-    data: { weeklyReportEnabled: false, weeklyReportSenderId: null, weeklyReportRecipients: [] },
+    data: { weeklyReportEnabled: false, weeklyReportRecipients: [] },
   })
-  await testPrisma.connectedMailbox.deleteMany({ where: { userId: { in: [ownerData.user.id, memberUser.id] } } })
 }
 
 beforeAll(async () => {
@@ -59,27 +58,21 @@ describe('GET /api/workspace/weekly-report', () => {
     expect(body).toMatchObject({
       enabled: false,
       recipients: [],
-      senderEmail: null,
-      viewerMailboxConnected: false,
+      lastSentAt: null,
     })
   })
 
-  it('I50: resolves senderEmail from the sender\'s connected mailbox', async () => {
-    await testPrisma.connectedMailbox.create({
-      data: {
-        userId: ownerData.user.id, provider: 'google', emailAddress: 'owner@sender.com',
-        accessToken: 'x', refreshToken: 'x',
-      },
-    })
+  it('I50: reflects lastSentAt once the workspace has been sent', async () => {
+    const sentAt = new Date('2026-07-18T10:00:00Z')
     await testPrisma.workspace.update({
       where: { id: ownerData.workspace.id },
-      data: { weeklyReportEnabled: true, weeklyReportSenderId: ownerData.user.id },
+      data: { weeklyReportEnabled: true, weeklyReportRecipients: ['client@example.com'], weeklyReportLastSentAt: sentAt },
     })
 
     const res = await GET()
     const body = await res.json()
-    expect(body.senderEmail).toBe('owner@sender.com')
-    expect(body.viewerMailboxConnected).toBe(true)
+    expect(body.enabled).toBe(true)
+    expect(new Date(body.lastSentAt).toISOString()).toBe(sentAt.toISOString())
   })
 })
 
@@ -102,47 +95,30 @@ describe('PATCH /api/workspace/weekly-report', () => {
     expect(res.status).toBe(400)
   })
 
-  it('I54: enabling without a connected mailbox returns 400 and does not enable', async () => {
+  it('I54: enabling without any recipients returns 400 and does not enable', async () => {
     const res = await PATCH(patchReq({ enabled: true }))
     expect(res.status).toBe(400)
     const workspace = await testPrisma.workspace.findUnique({ where: { id: ownerData.workspace.id } })
     expect(workspace?.weeklyReportEnabled).toBe(false)
   })
 
-  it('I55: enabling with a connected mailbox sets enabled and assigns the current user as sender', async () => {
-    await testPrisma.connectedMailbox.create({
-      data: {
-        userId: ownerData.user.id, provider: 'google', emailAddress: 'owner@sender.com',
-        accessToken: 'x', refreshToken: 'x',
-      },
+  it('I55: enabling succeeds once recipients are already set — no mailbox dependency', async () => {
+    await testPrisma.workspace.update({
+      where: { id: ownerData.workspace.id },
+      data: { weeklyReportRecipients: ['client@example.com'] },
     })
 
     const res = await PATCH(patchReq({ enabled: true }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.enabled).toBe(true)
-    expect(body.weeklyReportSenderId).toBe(ownerData.user.id)
   })
 
-  it('I56: does not overwrite an already-assigned sender on a later enable call', async () => {
-    await testPrisma.connectedMailbox.create({
-      data: {
-        userId: memberUser.id, provider: 'google', emailAddress: 'member@sender.com',
-        accessToken: 'x', refreshToken: 'x',
-      },
-    })
-    // Member enables first — becomes sender
-    vi.mocked(auth).mockResolvedValue(fakeSession(memberUser.id, ownerData.workspace.id) as any)
-    await testPrisma.workspaceMember.updateMany({
-      where: { workspaceId: ownerData.workspace.id, userId: memberUser.id },
-      data: { role: 'ADMIN' },
-    })
-    await PATCH(patchReq({ enabled: true }))
-
-    // Owner later toggles recipients — must not steal sender assignment
-    vi.mocked(auth).mockResolvedValue(fakeSession(ownerData.user.id, ownerData.workspace.id) as any)
-    const res = await PATCH(patchReq({ recipients: ['x@example.com'] }))
+  it('I56: setting recipients and enabling in the same request succeeds', async () => {
+    const res = await PATCH(patchReq({ enabled: true, recipients: ['client@example.com'] }))
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.weeklyReportSenderId).toBe(memberUser.id)
+    expect(body.enabled).toBe(true)
+    expect(body.recipients).toEqual(['client@example.com'])
   })
 })

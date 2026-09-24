@@ -7,42 +7,21 @@ export async function GET() {
   const session = await auth()
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { workspaceId, id: userId } = session.user
-
-  const [workspace, viewerMailbox] = await Promise.all([
-    prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      select: {
-        weeklyReportEnabled: true,
-        weeklyReportRecipients: true,
-        weeklyReportSenderId: true,
-        weeklyReportLastSentAt: true,
-      },
-    }),
-    prisma.connectedMailbox.findUnique({
-      where: { userId_provider: { userId, provider: 'google' } },
-      select: { emailAddress: true },
-    }),
-  ])
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: session.user.workspaceId },
+    select: {
+      weeklyReportEnabled: true,
+      weeklyReportRecipients: true,
+      weeklyReportLastSentAt: true,
+    },
+  })
 
   if (!workspace) return Response.json({ error: 'Workspace not found' }, { status: 404 })
-
-  let senderEmail: string | null = null
-  if (workspace.weeklyReportSenderId) {
-    const sender = await prisma.connectedMailbox.findUnique({
-      where: { userId_provider: { userId: workspace.weeklyReportSenderId, provider: 'google' } },
-      select: { emailAddress: true },
-    })
-    senderEmail = sender?.emailAddress ?? null
-  }
 
   return Response.json({
     enabled: workspace.weeklyReportEnabled,
     recipients: workspace.weeklyReportRecipients,
     lastSentAt: workspace.weeklyReportLastSentAt,
-    senderEmail,
-    viewerMailboxConnected: !!viewerMailbox,
-    viewerMailboxEmail: viewerMailbox?.emailAddress ?? null,
   })
 }
 
@@ -72,39 +51,24 @@ export async function PATCH(req: Request) {
 
   if (recipients) data.weeklyReportRecipients = recipients.map((r) => r.toLowerCase())
 
-  if (enabled !== undefined) {
-    if (enabled) {
-      const workspace = await prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { weeklyReportSenderId: true },
-      })
-      if (!workspace?.weeklyReportSenderId) {
-        const mailbox = await prisma.connectedMailbox.findUnique({
-          where: { userId_provider: { userId, provider: 'google' } },
-        })
-        if (!mailbox) {
-          return Response.json(
-            { error: 'Connect your email in Settings before enabling weekly reports.' },
-            { status: 400 }
-          )
-        }
-        data.weeklyReportSenderId = userId
-      }
+  if (enabled) {
+    const effectiveRecipients = recipients ?? (
+      await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { weeklyReportRecipients: true } })
+    )?.weeklyReportRecipients ?? []
+    if (effectiveRecipients.length === 0) {
+      return Response.json({ error: 'Add at least one recipient before enabling weekly reports.' }, { status: 400 })
     }
-    data.weeklyReportEnabled = enabled
   }
+  if (enabled !== undefined) data.weeklyReportEnabled = enabled
 
   const updated = await prisma.workspace.update({
     where: { id: workspaceId },
     data,
-    select: { weeklyReportEnabled: true, weeklyReportRecipients: true, weeklyReportSenderId: true },
+    select: { weeklyReportEnabled: true, weeklyReportRecipients: true },
   })
 
-  // Same field names as GET, so the client can merge this response straight
-  // into its existing state without a separate re-fetch.
   return Response.json({
     enabled: updated.weeklyReportEnabled,
     recipients: updated.weeklyReportRecipients,
-    weeklyReportSenderId: updated.weeklyReportSenderId,
   })
 }

@@ -1,7 +1,6 @@
 import { Worker, Queue } from 'bullmq';
 import { redis } from '@/lib/redis';
 import { processWeeklyReportJob } from '@/workers/weekly-report-send';
-import { processBounceCheckJob } from '@/workers/weekly-report-bounce-check';
 
 // Placeholder for future sync jobs (e.g. GA4, Google Ads)
 export const syncQueue = new Queue('sync-jobs', {
@@ -10,14 +9,14 @@ export const syncQueue = new Queue('sync-jobs', {
 
 // Registering a repeatable job with the same name+pattern is idempotent in
 // BullMQ — safe to call on every process start, won't create duplicates.
-syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '0 9 * * 1' } }); // Monday 9am
-syncQueue.add('reconcile-bounces', {}, { repeat: { pattern: '0 8 * * *' } }); // daily 8am
+// Saturday 3:30pm IST. Bounce tracking is now Resend's own webhook
+// (app/api/webhooks/resend/route.ts) rather than a polling job.
+syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '30 15 * * 6', tz: 'Asia/Kolkata' } });
 
 export const syncWorker = new Worker(
   'sync-jobs',
   async (job) => {
     if (job.name === 'send-weekly-report') return processWeeklyReportJob(job);
-    if (job.name === 'reconcile-bounces') return processBounceCheckJob(job);
 
     console.log(`Processing job ${job.id} of type ${job.name}`);
     console.log('Job data:', job.data);
