@@ -3,7 +3,11 @@ builder = "nixpacks"
 # PLAYWRIGHT_BROWSERS_PATH=0 installs into node_modules instead of the global
 # cache — Nixpacks' multi-stage build only carries the app directory into the
 # final image, so a global-cache install silently isn't there at runtime.
-buildCommand = "npm run build && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium"
+# Invoking node_modules/playwright/cli.js directly (not `npx playwright`) —
+# @playwright/test is also installed with its own older playwright-core, and
+# npx resolved to that one, downloading a Chromium revision that didn't match
+# what services/reports/pdf.ts actually imports (top-level `playwright`).
+buildCommand = "npm run build && PLAYWRIGHT_BROWSERS_PATH=0 node node_modules/playwright/cli.js install --with-deps chromium"
 
 [deploy]
 startCommand = "PLAYWRIGHT_BROWSERS_PATH=0 npx prisma migrate deploy && PLAYWRIGHT_BROWSERS_PATH=0 npm start"
