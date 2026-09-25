@@ -1,8 +1,11 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm run build && npx playwright install --with-deps chromium"
+# PLAYWRIGHT_BROWSERS_PATH=0 installs into node_modules instead of the global
+# cache — Nixpacks' multi-stage build only carries the app directory into the
+# final image, so a global-cache install silently isn't there at runtime.
+buildCommand = "npm run build && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && npm start"
+startCommand = "PLAYWRIGHT_BROWSERS_PATH=0 npx prisma migrate deploy && PLAYWRIGHT_BROWSERS_PATH=0 npm start"
 healthcheckPath = "/api/health"
 restartPolicyType = "on_failure"
