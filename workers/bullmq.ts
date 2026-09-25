@@ -18,10 +18,11 @@ syncQueue.removeRepeatable('reconcile-bounces', { pattern: '0 8 * * *' });
 // BullMQ — safe to call on every process start, won't create duplicates.
 // Friday 3:30pm IST. Bounce tracking is now Resend's own webhook
 // (app/api/webhooks/resend/route.ts) rather than a polling job.
-// TEMP: one-off 6:10pm slot to catch this week's send since the worker was
-// never actually running before today's instrumentation.ts fix — revert to
-// '30 15 * * 5' right after this fires.
-syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '10 18 * * 5', tz: 'Asia/Kolkata' } });
+// TEMP: one-off 6:35pm slot to catch this week's send since the worker was
+// never actually running before today's instrumentation.ts fix (6:10pm slot
+// missed — that deploy crashed on the maxRetriesPerRequest issue below).
+// Revert to '30 15 * * 5' right after this fires.
+syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '35 18 * * 5', tz: 'Asia/Kolkata' } });
 
 export const syncWorker = new Worker(
   'sync-jobs',
