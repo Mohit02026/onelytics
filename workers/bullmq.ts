@@ -13,19 +13,18 @@ export const syncQueue = new Queue('sync-jobs', {
 // no-op once cleaned up.
 syncQueue.removeRepeatable('send-weekly-report', { pattern: '0 9 * * 1' });
 syncQueue.removeRepeatable('reconcile-bounces', { pattern: '0 8 * * *' });
-// Earlier retry slots today, superseded each time a deploy issue got fixed.
+// One-off retry slots used today to catch up this week's send while the
+// worker-startup bugs got fixed in turn (never ran at all → redis config →
+// Chromium version mismatch). All superseded now that '30 15 * * 5' is back.
 syncQueue.removeRepeatable('send-weekly-report', { pattern: '10 18 * * 5', tz: 'Asia/Kolkata' });
 syncQueue.removeRepeatable('send-weekly-report', { pattern: '35 18 * * 5', tz: 'Asia/Kolkata' });
+syncQueue.removeRepeatable('send-weekly-report', { pattern: '0 19 * * 5', tz: 'Asia/Kolkata' });
 
 // Registering a repeatable job with the same name+pattern is idempotent in
 // BullMQ — safe to call on every process start, won't create duplicates.
 // Friday 3:30pm IST. Bounce tracking is now Resend's own webhook
 // (app/api/webhooks/resend/route.ts) rather than a polling job.
-// TEMP: one-off 7:00pm slot to catch this week's send — worker never ran
-// before today (instrumentation.ts fix), then hit a redis config crash, then
-// a Chromium version mismatch; each fixed in turn. Revert to '30 15 * * 5'
-// right after this fires.
-syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '0 19 * * 5', tz: 'Asia/Kolkata' } });
+syncQueue.add('send-weekly-report', {}, { repeat: { pattern: '30 15 * * 5', tz: 'Asia/Kolkata' } });
 
 export const syncWorker = new Worker(
   'sync-jobs',
